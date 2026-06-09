@@ -1,0 +1,36 @@
+# Blueprint de Render para el SERVIDOR central (poller + API + correos).
+# Importa este repo en Render → "New +" → "Blueprint". Render lee este archivo.
+# Las variables marcadas (sync:false) se pegan en el dashboard de Render (Secret).
+services:
+  - type: web
+    name: polla-server
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm -r build
+    startCommand: node apps/server/dist/index.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: FD_COMPETITION
+        value: WC
+      # --- Secretos: pégalos en el dashboard (NO se versionan) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FOOTBALL_DATA_TOKEN
+        sync: false
+      - key: API_FOOTBALL_TOKEN
+        sync: false
+      - key: THESPORTSDB_KEY
+        sync: false
+      - key: ALERT_WEBHOOK_URL
+        sync: false
+      # Token opcional para disparar el poller por cron externo (x-task-token).
+      - key: ADMIN_TASK_TOKEN
+        sync: false
+      # URL pública de la PWA (Vercel), para los enlaces de los correos.
+      - key: SITE_URL
+        sync: false

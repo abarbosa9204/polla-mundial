@@ -4,6 +4,7 @@
   "private": true,
   "description": "PWA de polla mundialista (Mundial 2026) — arquitectura central→réplica sobre Firebase Realtime Database (plan Spark).",
   "type": "module",
+  "packageManager": "pnpm@11.1.1",
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
