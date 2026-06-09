@@ -1,0 +1,28 @@
+{
+  "name": "@polla/data",
+  "version": "0.1.0",
+  "description": "Capa de acceso a datos Supabase: tipos de tablas, mapeadores a/desde @polla/core y factorías de cliente.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@polla/core": "workspace:*",
+    "@supabase/supabase-js": "^2.48.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

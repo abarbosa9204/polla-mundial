@@ -1,0 +1,7 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# Permitir scripts de build solo de dependencias de confianza (Vitest usa esbuild).
+allowBuilds:
+  esbuild: true

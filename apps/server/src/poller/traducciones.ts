@@ -1,0 +1,70 @@
+/**
+ * Traducción de nombres de selecciones (football-data los entrega en inglés) al
+ * español. Se aplica en el normalizador para que la BD almacene los nombres en
+ * español y toda la app los muestre así. Lo no mapeado conserva el original.
+ */
+const PAISES_ES: Record<string, string> = {
+  Algeria: 'Argelia',
+  Argentina: 'Argentina',
+  Australia: 'Australia',
+  Austria: 'Austria',
+  Belgium: 'Bélgica',
+  'Bosnia-Herzegovina': 'Bosnia y Herzegovina',
+  'Bosnia and Herzegovina': 'Bosnia y Herzegovina',
+  Brazil: 'Brasil',
+  Canada: 'Canadá',
+  'Cape Verde Islands': 'Cabo Verde',
+  'Cape Verde': 'Cabo Verde',
+  Colombia: 'Colombia',
+  'Congo DR': 'RD del Congo',
+  'DR Congo': 'RD del Congo',
+  Croatia: 'Croacia',
+  'Curaçao': 'Curazao',
+  Curacao: 'Curazao',
+  Czechia: 'Chequia',
+  'Czech Republic': 'Chequia',
+  Ecuador: 'Ecuador',
+  Egypt: 'Egipto',
+  England: 'Inglaterra',
+  France: 'Francia',
+  Germany: 'Alemania',
+  Ghana: 'Ghana',
+  Haiti: 'Haití',
+  Iran: 'Irán',
+  Iraq: 'Irak',
+  'Ivory Coast': 'Costa de Marfil',
+  Japan: 'Japón',
+  Jordan: 'Jordania',
+  Mexico: 'México',
+  Morocco: 'Marruecos',
+  Netherlands: 'Países Bajos',
+  'New Zealand': 'Nueva Zelanda',
+  Norway: 'Noruega',
+  Panama: 'Panamá',
+  Paraguay: 'Paraguay',
+  Portugal: 'Portugal',
+  Qatar: 'Catar',
+  'Saudi Arabia': 'Arabia Saudita',
+  Scotland: 'Escocia',
+  Senegal: 'Senegal',
+  'South Africa': 'Sudáfrica',
+  'South Korea': 'Corea del Sur',
+  'Korea Republic': 'Corea del Sur',
+  Spain: 'España',
+  Sweden: 'Suecia',
+  Switzerland: 'Suiza',
+  Tunisia: 'Túnez',
+  Turkey: 'Turquía',
+  'Türkiye': 'Turquía',
+  'United States': 'Estados Unidos',
+  USA: 'Estados Unidos',
+  Uruguay: 'Uruguay',
+  Uzbekistan: 'Uzbekistán',
+  // Comodines de cuadro (cuando aún no se conoce el equipo)
+  'Winner Group A': 'Ganador Grupo A',
+};
+
+/** Traduce el nombre de una selección al español; si no está, deja el original. */
+export function traducirPais(nombre: string): string {
+  return PAISES_ES[nombre] ?? PAISES_ES[nombre.trim()] ?? nombre;
+}

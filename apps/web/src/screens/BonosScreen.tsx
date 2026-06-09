@@ -1,0 +1,262 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchEquipos, fetchJugadores, fetchMisBonos, fetchPartidos, fetchMisPronosticos, type EquipoView } from '../lib/queries.js';
+import { guardarBonos, ApiError } from '../lib/api.js';
+import { Header, Cargando } from './CalendarioScreen.js';
+import { SelectorBuscador, type OpcionSelector } from '../components/SelectorBuscador.js';
+import { proyectarClasificados } from '../lib/clasificacion.js';
+import { fmtFechaHoraLarga } from '../lib/fases.js';
+import { useOnline } from '../lib/hooks.js';
+
+function Bandera({ equipo }: { equipo?: EquipoView }) {
+  if (!equipo) return null;
+  return (
+    <span className="inline-flex items-center gap-1 bg-slate-800/60 rounded px-1.5 py-0.5" title={equipo.nombre}>
+      {equipo.crest_url && <img src={equipo.crest_url} alt="" className="w-4 h-4 rounded-sm object-contain" />}
+      <span className="text-slate-200">{equipo.id}</span>
+    </span>
+  );
+}
+
+const RONDAS = [
+  { key: 'R32', label: 'Clasificados a 16avos', cantidad: 32, pts: 1 },
+  { key: 'R16', label: 'Clasificados a octavos', cantidad: 16, pts: 2 },
+  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: 8, pts: 3 },
+  { key: 'SEMIS', label: 'Clasificados a semifinales', cantidad: 4, pts: 5 },
+  { key: 'FINAL', label: 'Clasificados a la final', cantidad: 2, pts: 8 },
+] as const;
+
+export function BonosScreen() {
+  const online = useOnline();
+  const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
+  const jugadores = useQuery({ queryKey: ['jugadores'], queryFn: fetchJugadores });
+  const mis = useQuery({ queryKey: ['misBonos'], queryFn: fetchMisBonos });
+  const partidos = useQuery({ queryKey: ['partidos'], queryFn: fetchPartidos });
+  const misPron = useQuery({ queryKey: ['misPronosticos'], queryFn: fetchMisPronosticos });
+
+  const [campeon, setCampeon] = useState<string>('');
+  const [goleador, setGoleador] = useState<string>('');
+  const [clasificados, setClasificados] = useState<Record<string, string[]>>({});
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    if (mis.data) {
+      setCampeon(mis.data.campeon_equipo ?? '');
+      setGoleador(mis.data.goleador_jugador ?? '');
+      setClasificados(mis.data.clasificados ?? {});
+    }
+  }, [mis.data]);
+
+  const equiposArr = useMemo(
+    () => [...(equipos.data?.values() ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [equipos.data],
+  );
+
+  // Opciones para los selectores con buscador.
+  const opcEquipos: OpcionSelector[] = useMemo(
+    () => equiposArr.map((e) => ({ value: e.id, label: e.nombre, badge: e.id, img: e.crest_url })),
+    [equiposArr],
+  );
+  const opcJugadores: OpcionSelector[] = useMemo(
+    () =>
+      (jugadores.data ?? []).map((j) => ({
+        value: j.id,
+        label: j.nombre,
+        sub: j.equipo_id ? equipos.data?.get(j.equipo_id)?.nombre ?? undefined : undefined,
+        // Sin foto del jugador (la fuente no la trae) ⇒ usamos la bandera de su selección.
+        img: j.foto_url ?? (j.equipo_id ? equipos.data?.get(j.equipo_id)?.crest_url ?? null : null),
+      })),
+    [jugadores.data, equipos.data],
+  );
+
+  // Fecha máxima para registrar bonos = primer partido del Mundial.
+  const cierreBonos = useMemo(() => {
+    const ks = (partidos.data ?? []).map((p) => p.kickoff_utc).filter(Boolean).sort();
+    return ks[0] ?? null;
+  }, [partidos.data]);
+
+  // Proyección de clasificados a 16avos según los marcadores que el usuario pronosticó.
+  const proy = useMemo(
+    () => proyectarClasificados(partidos.data ?? [], misPron.data ?? [], equipos.data),
+    [partidos.data, misPron.data, equipos.data],
+  );
+  const proyR32 = useMemo(() => {
+    const ids: string[] = [];
+    for (const g of proy.grupos) {
+      if (g.filas[0]) ids.push(g.filas[0].equipoId);
+      if (g.filas[1]) ids.push(g.filas[1].equipoId);
+    }
+    proy.mejoresTerceros.forEach((id) => ids.push(id));
+    return ids;
+  }, [proy]);
+
+  if (equipos.isLoading) return <Cargando />;
+
+  function toggleClasif(ronda: string, equipoId: string) {
+    setClasificados((prev) => {
+      const actual = prev[ronda] ?? [];
+      const nuevo = actual.includes(equipoId)
+        ? actual.filter((x) => x !== equipoId)
+        : [...actual, equipoId];
+      return { ...prev, [ronda]: nuevo };
+    });
+  }
+
+  async function onSave() {
+    setMsg(null);
+    setGuardando(true);
+    try {
+      const r = await guardarBonos({ campeon: campeon || null, goleador: goleador || null, clasificados });
+      const txt =
+        r.rechazados.length > 0
+          ? `Guardado. Cerrados (no aplicados): ${r.rechazados.join(', ')}`
+          : 'Bonos guardados ✓';
+      setMsg({ tipo: r.rechazados.length ? 'err' : 'ok', texto: txt });
+      mis.refetch();
+    } catch (err) {
+      setMsg({ tipo: 'err', texto: err instanceof ApiError ? err.message : 'No se pudo guardar.' });
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div>
+      <Header titulo="Bonos de torneo" />
+      <div className="px-3 space-y-4">
+        <section className="card p-4 space-y-2">
+          <p className="text-sm text-slate-300">
+            Aquí pronosticas el campeón, el goleador y qué selecciones clasifican a cada ronda.
+            <b> Todo es opcional</b>, pero ten en cuenta: <b>solo ganas puntos por lo que elijas y aciertes</b>.
+            Lo que dejes sin seleccionar, simplemente no suma.
+          </p>
+          <p className="text-sm rounded-lg bg-brand/10 ring-1 ring-brand/30 px-3 py-2 text-brand">
+            ⏰ Fecha límite para registrar tus bonos:{' '}
+            <b>{cierreBonos ? fmtFechaHoraLarga(cierreBonos) : 'el primer partido del Mundial'}</b> (hora de Colombia).
+            Después de esa hora no se podrán cambiar.
+          </p>
+        </section>
+
+        {/* Proyección de clasificados según los marcadores del usuario */}
+        <section className="card p-4 space-y-2">
+          <h2 className="font-semibold text-sm">Según tus marcadores, clasificarían</h2>
+          {!proy.hayPredicciones ? (
+            <p className="text-xs text-slate-400">
+              Pronostica los partidos de la fase de grupos y aquí verás, automáticamente, qué selecciones
+              clasificarían a 16avos (los 2 primeros de cada grupo + los 8 mejores terceros).
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1">
+                {proy.grupos.map((g) => (
+                  <div key={g.grupo} className="text-xs flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-500 w-16 shrink-0">Grupo {g.grupo}</span>
+                    {[g.filas[0], g.filas[1]].filter(Boolean).map((f) => (
+                      <Bandera key={f!.equipoId} equipo={equipos.data?.get(f!.equipoId)} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {proy.mejoresTerceros.size > 0 && (
+                <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="shrink-0">Mejores terceros:</span>
+                  {[...proy.mejoresTerceros].map((id) => (
+                    <Bandera key={id} equipo={equipos.data?.get(id)} />
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => setClasificados((c) => ({ ...c, R32: proyR32 }))}
+                className="btn-ghost w-full text-xs"
+              >
+                Usar esta proyección como mis clasificados a 16avos ({proyR32.length})
+              </button>
+            </>
+          )}
+        </section>
+
+        {/* Campeón */}
+        <section className="card p-4">
+          <h2 className="font-semibold mb-1">🏆 Campeón del Mundial <span className="text-brand text-sm">+20</span></h2>
+          <p className="text-xs text-slate-400 mb-2">Elige 1 selección. Si no eliges, no ganas estos 20 puntos.</p>
+          <SelectorBuscador
+            opciones={opcEquipos}
+            value={campeon}
+            onChange={setCampeon}
+            placeholder="Buscar selección…"
+            vacioLabel="— Elegir campeón —"
+          />
+        </section>
+
+        {/* Goleador */}
+        <section className="card p-4">
+          <h2 className="font-semibold mb-1">⚽ Goleador del Mundial <span className="text-brand text-sm">+15</span></h2>
+          <p className="text-xs text-slate-400 mb-2">Elige 1 jugador. Si no eliges, no ganas estos 15 puntos.</p>
+          <SelectorBuscador
+            opciones={opcJugadores}
+            value={goleador}
+            onChange={setGoleador}
+            placeholder="Buscar jugador…"
+            vacioLabel="— Elegir goleador —"
+          />
+          {opcJugadores.length === 0 && (
+            <p className="text-xs text-slate-500 mt-2">Lista de jugadores aún no cargada.</p>
+          )}
+        </section>
+
+        {/* Clasificados por ronda — chips con bandera + sigla */}
+        {RONDAS.map((r) => {
+          const sel = clasificados[r.key]?.length ?? 0;
+          const completo = sel === r.cantidad;
+          return (
+          <section key={r.key} className="card p-4">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold text-sm">{r.label} <span className="text-brand">+{r.pts} c/u</span></h2>
+              <span className={`text-[11px] rounded-full px-2 py-0.5 ${completo ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-600/40 text-slate-300'}`}>
+                {sel}/{r.cantidad}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-2">
+              Selecciona <b>{r.cantidad}</b> selecciones. Puedes marcar menos: solo ganas {r.pts} punto(s)
+              por cada acierto; las que no marques no suman.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {equiposArr.map((e) => {
+                const sel = (clasificados[r.key] ?? []).includes(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    title={e.nombre}
+                    onClick={() => toggleClasif(r.key, e.id)}
+                    className={`px-2 py-1 rounded-lg text-xs flex items-center gap-1 ${
+                      sel ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'
+                    }`}
+                  >
+                    {e.crest_url && <img src={e.crest_url} alt="" className="w-4 h-4 rounded-sm object-contain" />}
+                    {e.id}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Resumen con nombres de lo seleccionado */}
+            {sel > 0 && (
+              <p className="text-[11px] text-slate-400 mt-2">
+                {(clasificados[r.key] ?? [])
+                  .map((id) => equipos.data?.get(id)?.nombre ?? id)
+                  .join(', ')}
+              </p>
+            )}
+          </section>
+          );
+        })}
+
+        {msg && <p className={`text-sm text-center ${msg.tipo === 'ok' ? 'text-emerald-400' : 'text-amber-400'}`}>{msg.texto}</p>}
+        {!online && <p className="text-amber-400 text-sm text-center">Sin conexión: no puedes guardar.</p>}
+        <button onClick={onSave} disabled={!online || guardando} className="btn-primary w-full">
+          {guardando ? 'Guardando…' : 'Guardar bonos'}
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,22 @@
+{
+  "name": "polla-mundialista",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PWA de polla mundialista (Mundial 2026) — arquitectura central→réplica sobre Firebase Realtime Database (plan Spark).",
+  "type": "module",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:core": "pnpm --filter @polla/core test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3"
+  }
+}

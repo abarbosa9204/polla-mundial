@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Tests / coverage
+coverage/
+.vitest/
+
+# Secretos — NUNCA subir a git
+.env
+.env.*
+!.env.example
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+firebase-service-account*.json
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# PWA / vite
+.vite/
+dev-dist/
+
+# Datos de muestra / scripts temporales (prefijo _)
+apps/server/scripts/_*.json
+apps/server/scripts/_*.mjs
+
+# Herramientas / IDE
+.qodo/
