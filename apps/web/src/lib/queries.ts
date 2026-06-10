@@ -59,8 +59,9 @@ export async function fetchPronosticosDePartido(partidoId: string): Promise<Pron
 
 /**
  * Pronósticos de un usuario concreto. RLS devuelve solo los visibles para quien
- * consulta: los propios siempre, y los ajenos solo de partidos con el registro
- * cerrado (5 min antes del kickoff) o ya iniciados.
+ * consulta: los propios siempre, y los ajenos solo de partidos que YA INICIARON
+ * (kickoff alcanzado o en juego/terminado). El registro cierra 5 min antes, así
+ * que al iniciar nadie puede copiar.
  */
 export async function fetchPronosticosDeUsuario(userId: string): Promise<PronosticoRow[]> {
   const { data, error } = await supabase

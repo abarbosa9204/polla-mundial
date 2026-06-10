@@ -129,8 +129,8 @@ function FilaTabla({
 
 /**
  * Marcadores (pronósticos) de un usuario. RLS solo deja ver los ajenos cuando el
- * partido ha FINALIZADO. Por eso aquí solo aparecen los marcadores de partidos ya
- * terminados — transparencia sin riesgo de copiar.
+ * partido ya INICIÓ (el registro cerró 5 min antes del kickoff, así que no hay
+ * riesgo de copiar). Por eso aquí solo aparecen los de partidos ya iniciados.
  */
 function MarcadoresUsuario({ userId }: { userId: string }) {
   const pron = useQuery({ queryKey: ['pronosticosDe', userId], queryFn: () => fetchPronosticosDeUsuario(userId) });
@@ -147,16 +147,17 @@ function MarcadoresUsuario({ userId }: { userId: string }) {
     .sort((a, b) => a.p!.kickoff_utc.localeCompare(b.p!.kickoff_utc));
 
   if (visibles.length === 0) {
-    return <p className="text-xs text-slate-500">Sus marcadores se verán cuando los partidos finalicen.</p>;
+    return <p className="text-xs text-slate-500">Sus marcadores se verán cuando inicien los partidos.</p>;
   }
 
   const flag = (id: string | null) => equipos.data?.get(id ?? '')?.crest_url ?? null;
 
   return (
     <ul className="space-y-1">
-      <li className="text-[11px] text-slate-400 font-medium">Marcadores (visibles cuando finaliza el partido):</li>
+      <li className="text-[11px] text-slate-400 font-medium">Marcadores (visibles cuando inicia el partido):</li>
       {visibles.map(({ x, p }) => {
         const fin = p!.estado === 'FINISHED' && p!.goles_a_90 != null;
+        const hayReal = p!.goles_a_90 != null && p!.goles_b_90 != null;
         const exacto = fin && x.marcador_a_90 === p!.goles_a_90 && x.marcador_b_90 === p!.goles_b_90;
         return (
           <li key={x.partido_id} className="flex items-center justify-between text-xs gap-2">
@@ -168,7 +169,8 @@ function MarcadoresUsuario({ userId }: { userId: string }) {
               {flag(p!.equipo_b) ? <img src={flag(p!.equipo_b)!} alt="" className="w-4 h-4 rounded-sm object-contain" /> : null}
             </span>
             <span className="shrink-0 tabular-nums text-slate-500">
-              real {p!.goles_a_90}-{p!.goles_b_90}{exacto ? ' ✓' : ''}
+              {hayReal ? `${fin ? 'real' : 'va'} ${p!.goles_a_90}-${p!.goles_b_90}` : 'en juego'}
+              {exacto ? ' ✓' : ''}
             </span>
           </li>
         );

@@ -71,7 +71,7 @@ export function PartidoGlobalScreen() {
           ))}
           {(pron.data ?? []).length === 0 && sinPronostico.length === 0 && (
             <p className="text-center text-slate-400 py-8 text-sm">
-              {pron.isLoading ? 'Cargando…' : 'Los pronósticos de todos se hacen visibles cuando el partido finaliza.'}
+              {pron.isLoading ? 'Cargando…' : 'Los pronósticos de todos se hacen visibles cuando el partido inicia.'}
             </p>
           )}
         </ul>
