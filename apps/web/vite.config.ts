@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'og.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'og.png'],
       manifest: {
         name: 'Polla Mundialista 2026',
         short_name: 'Polla 2026',
