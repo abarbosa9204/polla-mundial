@@ -139,8 +139,8 @@ function Equipo({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <TeamBadge equipo={id ? equipos?.get(id) : undefined} />
-      {goles != null && <span className="text-lg font-bold tabular-nums">{goles}</span>}
+      <TeamBadge equipo={id ? equipos?.get(id) : undefined} wrap />
+      {goles != null && <span className="text-lg font-bold tabular-nums shrink-0">{goles}</span>}
     </div>
   );
 }

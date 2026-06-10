@@ -100,8 +100,8 @@ function Fila({
 }) {
   return (
     <div className={`flex items-center justify-between gap-2 py-0.5 ${ganador ? 'font-semibold' : ''}`}>
-      <TeamBadge equipo={id ? equipos?.get(id) : undefined} size={22} />
-      <span className="text-lg font-bold tabular-nums">{goles ?? '-'}</span>
+      <TeamBadge equipo={id ? equipos?.get(id) : undefined} size={22} wrap />
+      <span className="text-lg font-bold tabular-nums shrink-0">{goles ?? '-'}</span>
     </div>
   );
 }
