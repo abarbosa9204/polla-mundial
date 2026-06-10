@@ -64,6 +64,14 @@ export function PronosticoScreen() {
     setEb('');
     setGanador(null);
   };
+  // Al cambiar el marcador del tiempo extra, se re-evalúa si hay penales ⇒ se
+  // resetea "quién avanza" (solo se elige si el extra también queda empatado).
+  const cambiarExtra = (lado: 'a' | 'b', valor: string) => {
+    const limpio = valor.replace(/\D/g, '').slice(0, 2);
+    if (lado === 'a') setEa(limpio);
+    else setEb(limpio);
+    setGanador(null);
+  };
 
   async function onSubmit() {
     if (!id) return;
@@ -74,24 +82,36 @@ export function PronosticoScreen() {
       setMsg({ tipo: 'err', texto: 'Ingresa el marcador de ambos equipos.' });
       return;
     }
-    const empate90 = golesA === golesB;
-    const payload = {
-      marcador90: { golesA, golesB },
-      ...(elim
-        ? empate90
-          ? {
-              habraExtra: true,
-              marcadorExtra: ea !== '' && eb !== '' ? { golesA: parseInt(ea, 10), golesB: parseInt(eb, 10) } : null,
-              ganadorFinal: ganador,
-            }
-          : {
-              // Hay ganador en los 90': no hay tiempo extra; el que va ganando avanza.
-              habraExtra: false,
-              marcadorExtra: null,
-              ganadorFinal: (golesA > golesB ? 'A' : 'B') as 'A' | 'B',
-            }
-        : {}),
-    };
+    // --- Definición de eliminatoria (depende del marcador) ---
+    let elimFields: Record<string, unknown> = {};
+    if (elim) {
+      if (golesA !== golesB) {
+        // Hay ganador en los 90': avanza ese equipo, sin tiempo extra.
+        elimFields = { habraExtra: false, marcadorExtra: null, ganadorFinal: (golesA > golesB ? 'A' : 'B') as 'A' | 'B' };
+      } else {
+        // Empate en los 90' ⇒ tiempo extra. El marcador del extra es OBLIGATORIO.
+        const gea = parseInt(ea, 10);
+        const geb = parseInt(eb, 10);
+        if (ea === '' || eb === '' || Number.isNaN(gea) || Number.isNaN(geb)) {
+          setMsg({ tipo: 'err', texto: 'Empate en los 90′: ingresa el marcador del tiempo extra.' });
+          return;
+        }
+        let gFinal: 'A' | 'B';
+        if (gea !== geb) {
+          // Gana en el tiempo extra: avanza ese equipo (no hay penales).
+          gFinal = gea > geb ? 'A' : 'B';
+        } else {
+          // Empate también en el extra ⇒ penales: elegir quién avanza es OBLIGATORIO.
+          if (ganador == null) {
+            setMsg({ tipo: 'err', texto: 'Empate también en el extra: elige quién avanza por penales.' });
+            return;
+          }
+          gFinal = ganador;
+        }
+        elimFields = { habraExtra: true, marcadorExtra: { golesA: gea, golesB: geb }, ganadorFinal: gFinal };
+      }
+    }
+    const payload = { marcador90: { golesA, golesB }, ...elimFields };
 
     // Sin conexión: se guarda en la cola local con su hora y se sincroniza luego.
     if (!navigator.onLine) {
@@ -132,6 +152,12 @@ export function PronosticoScreen() {
   const ganaA90 = ambosLlenos && gA90 > gB90;
   const nombreA = equipos.data?.get(partido.equipo_a ?? '')?.nombre ?? 'Equipo A';
   const nombreB = equipos.data?.get(partido.equipo_b ?? '')?.nombre ?? 'Equipo B';
+  // Derivados del tiempo extra (solo relevantes si empate90).
+  const gEA = parseInt(ea, 10);
+  const gEB = parseInt(eb, 10);
+  const extraLleno = ea !== '' && eb !== '' && !Number.isNaN(gEA) && !Number.isNaN(gEB);
+  const empateExtra = extraLleno && gEA === gEB;
+  const ganaExtraA = extraLleno && gEA > gEB;
 
   return (
     <div>
@@ -193,33 +219,45 @@ export function PronosticoScreen() {
                   Empate en los 90′: el partido se define en <b>tiempo extra</b> y, si sigue empatado, en
                   <b> penales</b>.
                 </p>
-                {/* Marcador al final del tiempo extra (opcional) */}
+                {/* Marcador al final del tiempo extra (OBLIGATORIO si hay empate en los 90') */}
                 <div>
-                  <p className="text-xs text-slate-400 mb-1 text-center">Marcador al final del tiempo extra (opcional):</p>
+                  <p className="text-xs text-slate-400 mb-1 text-center">
+                    Marcador al final del tiempo extra <span className="text-brand">(obligatorio)</span>:
+                  </p>
                   <div className="flex items-center justify-center gap-2">
                     <input inputMode="numeric" className="input-score !w-12 !h-12 !text-lg" value={ea} disabled={bloqueado}
-                      onChange={(e) => setEa(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+                      onChange={(e) => cambiarExtra('a', e.target.value)} />
                     <span>-</span>
                     <input inputMode="numeric" className="input-score !w-12 !h-12 !text-lg" value={eb} disabled={bloqueado}
-                      onChange={(e) => setEb(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+                      onChange={(e) => cambiarExtra('b', e.target.value)} />
                   </div>
                 </div>
-                {/* Quién avanza (gana en extra o penales) */}
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">
-                    ¿Quién avanza? (gana en el tiempo extra o en penales) · <span className="text-brand">suma puntos</span>
+
+                {/* Definición tras el tiempo extra: gana uno → avanza solo; empata → penales. */}
+                {!extraLleno ? (
+                  <p className="text-xs text-slate-400">Ingresa el marcador del tiempo extra para definir quién avanza.</p>
+                ) : !empateExtra ? (
+                  <p className="text-sm text-slate-300">
+                    Con tu marcador del extra, <b className="text-brand">avanza {ganaExtraA ? nombreA : nombreB}</b> (gana
+                    en el tiempo extra). No hay penales.
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button disabled={bloqueado} onClick={() => setGanador('A')}
-                      className={`btn min-w-0 ${ganador === 'A' ? 'bg-brand text-white' : 'bg-white/5'}`}>
-                      <span className="truncate">{nombreA}</span>
-                    </button>
-                    <button disabled={bloqueado} onClick={() => setGanador('B')}
-                      className={`btn min-w-0 ${ganador === 'B' ? 'bg-brand text-white' : 'bg-white/5'}`}>
-                      <span className="truncate">{nombreB}</span>
-                    </button>
+                ) : (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">
+                      Empate también en el extra → <b>penales</b>. ¿Quién avanza? <span className="text-brand">(obligatorio · suma puntos)</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button disabled={bloqueado} onClick={() => setGanador('A')}
+                        className={`btn min-w-0 ${ganador === 'A' ? 'bg-brand text-white' : 'bg-white/5'}`}>
+                        <span className="truncate">{nombreA}</span>
+                      </button>
+                      <button disabled={bloqueado} onClick={() => setGanador('B')}
+                        className={`btn min-w-0 ${ganador === 'B' ? 'bg-brand text-white' : 'bg-white/5'}`}>
+                        <span className="truncate">{nombreB}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -356,17 +394,29 @@ function PuntosPosibles({
   // En eliminatoria, el tiempo extra solo aplica si el marcador de los 90' empata.
   let maximo = 0;
   if (tieneMarcador) {
-    const extra = elim && empate90 && ea !== '' && eb !== '' ? { golesA: parseInt(ea, 10), golesB: parseInt(eb, 10) } : null;
+    const gEA = parseInt(ea, 10);
+    const gEB = parseInt(eb, 10);
+    const extra = elim && empate90 && ea !== '' && eb !== '' && !Number.isNaN(gEA) && !Number.isNaN(gEB)
+      ? { golesA: gEA, golesB: gEB }
+      : null;
     const gana90: 'A' | 'B' = golesA > golesB ? 'A' : 'B';
+    // En empate de los 90': si el extra tiene ganador, avanza ese equipo; si el extra empata, vale el pick manual (penales).
+    const ganadorElim: 'A' | 'B' | null = empate90
+      ? extra
+        ? extra.golesA !== extra.golesB
+          ? (extra.golesA > extra.golesB ? 'A' : 'B')
+          : ganador
+        : null
+      : gana90;
     const elimFields = elim
       ? empate90
-        ? { habraExtra: true, marcadorExtra: extra, ganadorFinal: ganador }
+        ? { habraExtra: true, marcadorExtra: extra, ganadorFinal: ganadorElim }
         : { habraExtra: false, marcadorExtra: null, ganadorFinal: gana90 }
       : {};
     const pred = { marcador90: { golesA, golesB }, ...elimFields };
     const result = {
       marcador90: { golesA, golesB },
-      ...(elim ? { huboExtra: empate90, marcadorExtra: extra, ganadorFinal: empate90 ? ganador : gana90 } : {}),
+      ...(elim ? { huboExtra: empate90, marcadorExtra: extra, ganadorFinal: empate90 ? ganadorElim : gana90 } : {}),
     };
     maximo = calcularPuntos(pred, result, fase, config).total;
   }
