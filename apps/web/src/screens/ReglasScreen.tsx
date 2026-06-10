@@ -33,11 +33,14 @@ export function ReglasScreen() {
         </section>
 
         <section className="card p-4">
-          <h2 className="font-semibold mb-1">Eliminatorias (extras)</h2>
-          <p className="text-xs text-slate-400 mb-1">Solo en partidos con tiempo extra / penales.</p>
-          <Linea texto="Acertar si hubo tiempo extra" pts={`${c.extras.acertarHuboExtra}`} />
-          <Linea texto="Marcador exacto del tiempo extra" pts={`${c.extras.marcadorExtraExacto}`} />
-          <Linea texto="Acertar el ganador final (incl. penales)" pts={`${c.extras.ganadorFinal}`} />
+          <h2 className="font-semibold mb-1">Eliminatorias (puntos extra)</h2>
+          <p className="text-xs text-slate-400 mb-1">
+            Desde 16avos los partidos pueden definirse en tiempo extra o penales. Estos puntos se
+            suman a los del marcador de los 90′ (y también se multiplican por la fase):
+          </p>
+          <Linea texto="Acertar si habrá tiempo extra" pts={`+${c.extras.acertarHuboExtra}`} />
+          <Linea texto="Marcador exacto al final del tiempo extra" pts={`+${c.extras.marcadorExtraExacto}`} />
+          <Linea texto="Acertar quién avanza (ganador, incl. penales)" pts={`+${c.extras.ganadorFinal}`} />
         </section>
 
         <section className="card p-4">

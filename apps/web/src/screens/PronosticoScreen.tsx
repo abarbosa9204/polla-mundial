@@ -127,16 +127,16 @@ export function PronosticoScreen() {
             <span>{fmtFechaHora(partido.kickoff_utc)}</span>
           </div>
 
-          <div className="mt-3 flex items-center justify-center gap-4">
-            <div className="flex-1 text-right"><TeamBadge equipo={partido.equipo_a ? equipos.data?.get(partido.equipo_a) : undefined} /></div>
-            <div className="flex items-center gap-2">
+          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="min-w-0 flex justify-end"><TeamBadge equipo={partido.equipo_a ? equipos.data?.get(partido.equipo_a) : undefined} /></div>
+            <div className="flex items-center gap-1.5 shrink-0">
               <input inputMode="numeric" className="input-score" value={a} disabled={bloqueado}
                 onChange={(e) => setA(e.target.value.replace(/\D/g, '').slice(0, 2))} />
               <span className="text-slate-500">-</span>
               <input inputMode="numeric" className="input-score" value={b} disabled={bloqueado}
                 onChange={(e) => setB(e.target.value.replace(/\D/g, '').slice(0, 2))} />
             </div>
-            <div className="flex-1"><TeamBadge equipo={partido.equipo_b ? equipos.data?.get(partido.equipo_b) : undefined} /></div>
+            <div className="min-w-0"><TeamBadge equipo={partido.equipo_b ? equipos.data?.get(partido.equipo_b) : undefined} /></div>
           </div>
 
           <div className="mt-3 text-center">
@@ -162,25 +162,30 @@ export function PronosticoScreen() {
               <Toggle label="¿Habrá tiempo extra?" value={habraExtra} onChange={setHabraExtra} disabled={bloqueado} />
             </div>
             {habraExtra === true && (
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-slate-400">Marcador al final del extra:</span>
+              <div>
+                <p className="text-xs text-slate-400 mb-1 text-center">Marcador al final del tiempo extra:</p>
+                <div className="flex items-center justify-center gap-2">
                 <input inputMode="numeric" className="input-score !w-12 !h-12 !text-lg" value={ea} disabled={bloqueado}
                   onChange={(e) => setEa(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                 <span>-</span>
                 <input inputMode="numeric" className="input-score !w-12 !h-12 !text-lg" value={eb} disabled={bloqueado}
                   onChange={(e) => setEb(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+                </div>
               </div>
             )}
             <div>
-              <p className="text-xs text-slate-400 mb-1">Ganador final (incluye penales):</p>
+              <p className="text-xs text-slate-400 mb-1">
+                ¿Quién avanza de ronda? El equipo que gane el partido (en los 90′, en tiempo extra o en
+                penales). <span className="text-brand">Acertarlo suma puntos.</span>
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 <button disabled={bloqueado} onClick={() => setGanador('A')}
-                  className={`btn ${ganador === 'A' ? 'bg-brand text-white' : 'bg-white/5'}`}>
-                  {equipos.data?.get(partido.equipo_a ?? '')?.nombre ?? 'Local'}
+                  className={`btn min-w-0 ${ganador === 'A' ? 'bg-brand text-white' : 'bg-white/5'}`}>
+                  <span className="truncate">{equipos.data?.get(partido.equipo_a ?? '')?.nombre ?? 'Local'}</span>
                 </button>
                 <button disabled={bloqueado} onClick={() => setGanador('B')}
-                  className={`btn ${ganador === 'B' ? 'bg-brand text-white' : 'bg-white/5'}`}>
-                  {equipos.data?.get(partido.equipo_b ?? '')?.nombre ?? 'Visita'}
+                  className={`btn min-w-0 ${ganador === 'B' ? 'bg-brand text-white' : 'bg-white/5'}`}>
+                  <span className="truncate">{equipos.data?.get(partido.equipo_b ?? '')?.nombre ?? 'Visita'}</span>
                 </button>
               </div>
             </div>
@@ -361,7 +366,7 @@ function PuntosPosibles({
         <>
           <Razon texto="⏱️ Acertar si hay tiempo extra" detalle={fmt(config.extras.acertarHuboExtra)} activo={habraExtra !== null} />
           <Razon texto="🎯 Marcador exacto del extra" detalle={fmt(config.extras.marcadorExtraExacto)} activo={habraExtra === true} />
-          <Razon texto="🏅 Acertar ganador final" detalle={fmt(config.extras.ganadorFinal)} activo={ganador !== null} />
+          <Razon texto="🏅 Acertar quién avanza" detalle={fmt(config.extras.ganadorFinal)} activo={ganador !== null} />
         </>
       )}
 
