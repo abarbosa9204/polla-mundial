@@ -34,11 +34,13 @@ export function ReglasScreen() {
 
         <section className="card p-4">
           <h2 className="font-semibold mb-1">Eliminatorias (puntos extra)</h2>
-          <p className="text-xs text-slate-400 mb-1">
-            Desde 16avos los partidos pueden definirse en tiempo extra o penales. Estos puntos se
-            suman a los del marcador de los 90′ (y también se multiplican por la fase):
+          <p className="text-xs text-slate-400 mb-2">
+            Desde 16avos no hay empates. <b>Si tu marcador de los 90′ tiene un ganador</b>, ese equipo
+            avanza y no hay tiempo extra. <b>Si pronosticas empate en los 90′</b>, el partido se define
+            en tiempo extra y, si sigue empatado, en penales: ahí eliges <b>quién avanza</b>. Estos
+            puntos se <b>suman</b> a los del marcador (y se multiplican por la fase):
           </p>
-          <Linea texto="Acertar si habrá tiempo extra" pts={`+${c.extras.acertarHuboExtra}`} />
+          <Linea texto="Acertar si el partido va o no a tiempo extra" pts={`+${c.extras.acertarHuboExtra}`} />
           <Linea texto="Marcador exacto al final del tiempo extra" pts={`+${c.extras.marcadorExtraExacto}`} />
           <Linea texto="Acertar quién avanza (ganador, incl. penales)" pts={`+${c.extras.ganadorFinal}`} />
         </section>
