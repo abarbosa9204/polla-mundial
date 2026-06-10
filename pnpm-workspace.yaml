@@ -5,3 +5,4 @@ packages:
 # Permitir scripts de build solo de dependencias de confianza (Vitest usa esbuild).
 allowBuilds:
   esbuild: true
+  sharp: set this to true or false
