@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.js';
+import { getSS, setSS } from '../lib/storage.js';
 
 /**
  * Saludo de bienvenida al iniciar sesión. Aparece una vez por sesión del
@@ -12,8 +13,8 @@ export function BienvenidaToast() {
   useEffect(() => {
     if (!userId || !displayName) return;
     const clave = `polla:bienvenida:${userId}`;
-    if (sessionStorage.getItem(clave)) return;
-    sessionStorage.setItem(clave, '1');
+    if (getSS(clave)) return;
+    setSS(clave, '1');
     setVisible(true);
     const t = setTimeout(() => setVisible(false), 5000);
     return () => clearTimeout(t);

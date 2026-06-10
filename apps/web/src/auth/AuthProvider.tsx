@@ -19,6 +19,7 @@ interface AuthState {
   esSuperAdmin: boolean;
   signInEmail: (email: string, password: string) => Promise<void>;
   signUpEmail: (email: string, password: string, displayName: string) => Promise<void>;
+  resendConfirmation: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (nueva: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -91,6 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: { data: { display_name: displayName }, emailRedirectTo: window.location.origin },
+      });
+      if (error) throw new Error(traducir(error.message));
+    },
+    async resendConfirmation(email) {
+      // Reenvía el correo de confirmación de registro (por si no llegó o caducó).
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin },
       });
       if (error) throw new Error(traducir(error.message));
     },

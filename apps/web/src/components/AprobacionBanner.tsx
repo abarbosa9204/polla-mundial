@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.js';
+import { getSS, setSS } from '../lib/storage.js';
 
 /**
  * Aviso (cerrable) cuando el usuario aún no puede participar: o no está activado, o
@@ -9,7 +10,7 @@ import { useAuth } from '../auth/AuthProvider.js';
 export function AprobacionBanner() {
   const { estado, pagado, esAdmin } = useAuth();
   const clave = `polla:aviso-cerrado:${estado}:${pagado}`;
-  const [cerrado, setCerrado] = useState(() => sessionStorage.getItem(clave) === '1');
+  const [cerrado, setCerrado] = useState(() => getSS(clave) === '1');
 
   if (esAdmin || estado === null) return null;
   if (estado === 'aprobado' && pagado) return null;
@@ -31,7 +32,7 @@ export function AprobacionBanner() {
       <span className="flex-1">{texto}</span>
       <button
         onClick={() => {
-          sessionStorage.setItem(clave, '1');
+          setSS(clave, '1');
           setCerrado(true);
         }}
         aria-label="Cerrar aviso"

@@ -30,7 +30,11 @@ function leer(): ItemCola[] {
 }
 
 function escribir(items: ItemCola[]): void {
-  localStorage.setItem(KEY, JSON.stringify(items));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    /* almacenamiento no disponible (modo privado / navegador in-app): se ignora */
+  }
   // Avisar a la UI (banner / contadores).
   window.dispatchEvent(new CustomEvent('cola-pronosticos'));
 }

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.js';
+import { getLS, setLS, delLS } from '../lib/storage.js';
 
 type Modo = 'login' | 'registro' | 'recuperar';
 
 export function LoginScreen() {
-  const { signInEmail, signUpEmail, resetPassword } = useAuth();
+  const { signInEmail, signUpEmail, resendConfirmation, resetPassword } = useAuth();
   const [modo, setModo] = useState<Modo>('login');
-  const [email, setEmail] = useState(() => localStorage.getItem('polla:correo') ?? '');
-  const [recordar, setRecordar] = useState(() => localStorage.getItem('polla:correo') != null);
+  const [email, setEmail] = useState(() => getLS('polla:correo') ?? '');
+  const [recordar, setRecordar] = useState(() => getLS('polla:correo') != null);
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,8 +23,8 @@ export function LoginScreen() {
     try {
       // Recordar (o no) el correo en este dispositivo. Nunca se guarda la clave;
       // el navegador ofrece guardarla con su gestor de contraseñas.
-      if (recordar) localStorage.setItem('polla:correo', email);
-      else localStorage.removeItem('polla:correo');
+      if (recordar) setLS('polla:correo', email);
+      else delLS('polla:correo');
       if (modo === 'login') {
         await signInEmail(email, password);
       } else if (modo === 'registro') {
@@ -40,6 +41,24 @@ export function LoginScreen() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function reenviarConfirmacion() {
+    setError(null);
+    setAviso(null);
+    if (!email) {
+      setError('Escribe tu correo arriba para reenviarte la confirmación.');
+      return;
+    }
+    setCargando(true);
+    try {
+      await resendConfirmation(email);
+      setAviso('Te reenviamos el correo de confirmación. Revisa tu bandeja y la carpeta de spam.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo reenviar.');
     } finally {
       setCargando(false);
     }
@@ -114,6 +133,7 @@ export function LoginScreen() {
 
         {modo === 'login' && (
           <button
+            type="button"
             onClick={() => {
               setModo('recuperar');
               setError(null);
@@ -125,7 +145,19 @@ export function LoginScreen() {
           </button>
         )}
 
+        {modo === 'login' && (
+          <button
+            type="button"
+            disabled={cargando}
+            onClick={reenviarConfirmacion}
+            className="text-sm text-slate-400 mt-2 w-full text-center hover:text-slate-200 disabled:opacity-50"
+          >
+            ¿No te llegó el correo? Reenviar confirmación
+          </button>
+        )}
+
         <button
+          type="button"
           onClick={() => {
             setModo(modo === 'login' ? 'registro' : 'login');
             setError(null);
