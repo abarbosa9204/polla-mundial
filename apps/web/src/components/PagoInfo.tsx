@@ -59,10 +59,6 @@ export function PagoInfo() {
           {copiado ? '¡Copiado!' : 'copiar'}
         </span>
       </button>
-
-      <p className="text-[10px] text-slate-500 mt-2.5">
-        Después de pagar, el administrador confirmará tu inscripción para habilitarte.
-      </p>
     </div>
   );
 }
