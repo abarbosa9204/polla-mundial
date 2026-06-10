@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase.js';
-import { registroPublico, resetPublico, ApiError } from '../lib/api.js';
 
 export type Rol = 'user' | 'admin' | 'super_admin';
 export type EstadoUsuario = 'pendiente' | 'aprobado' | 'rechazado';
@@ -87,19 +86,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw new Error(traducir(error.message));
     },
     async signUpEmail(email, password, displayName) {
-      // El servidor crea el usuario y envía el correo de confirmación con su SMTP.
-      try {
-        await registroPublico({ email, password, display_name: displayName });
-      } catch (err) {
-        throw new Error(err instanceof ApiError ? traducir(err.message) : 'No se pudo registrar.');
-      }
+      // Supabase crea el usuario y envía el correo de confirmación (SMTP del panel).
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: displayName }, emailRedirectTo: window.location.origin },
+      });
+      if (error) throw new Error(traducir(error.message));
     },
     async resetPassword(email) {
-      try {
-        await resetPublico(email);
-      } catch (err) {
-        throw new Error(err instanceof ApiError ? traducir(err.message) : 'No se pudo enviar el correo.');
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw new Error(traducir(error.message));
     },
     async updatePassword(nueva) {
       const { error } = await supabase.auth.updateUser({ password: nueva });

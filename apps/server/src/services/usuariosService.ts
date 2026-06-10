@@ -54,6 +54,30 @@ export async function listarUsuarios(db: SupabaseClient): Promise<UsuarioAdmin[]
   return usuarios;
 }
 
+/**
+ * Crea un usuario por invitación: Supabase le envía un correo para fijar su
+ * contraseña (usa el SMTP configurado en el panel de Supabase). Queda aprobado.
+ */
+export async function invitarUsuario(
+  db: SupabaseClient,
+  email: string,
+  displayName: string,
+  redirectTo?: string,
+): Promise<{ id: string }> {
+  const { data, error } = await db.auth.admin.inviteUserByEmail(email, {
+    data: { display_name: displayName },
+    redirectTo,
+  });
+  if (error) throw new Error(error.message);
+  const id = data.user.id;
+  const { error: e2 } = await db
+    .from('profiles')
+    .update({ display_name: displayName, estado: 'aprobado' })
+    .eq('id', id);
+  if (e2) throw new Error(e2.message);
+  return { id };
+}
+
 /** Cambia el estado de aprobación de un usuario. */
 export async function cambiarEstado(
   db: SupabaseClient,

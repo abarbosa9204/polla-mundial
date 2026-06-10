@@ -89,8 +89,6 @@ export function AdminScreen() {
 
         {esSuperAdmin && <ConfigPremios onDone={(m) => setMsg(m)} />}
 
-        {esSuperAdmin && <ConfigCorreo onDone={(m) => setMsg(m)} />}
-
         <CorreccionManual
           partidos={partidos.data ?? []}
           equipos={equipos.data}

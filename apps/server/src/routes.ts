@@ -20,18 +20,11 @@ import { runPoller } from './poller/runPoller.js';
 import { fetchGoleadoresFootballData, type GoleadorFD } from './poller/footballDataClient.js';
 import {
   listarUsuarios,
+  invitarUsuario,
   cambiarEstado,
   editarUsuario,
   eliminarUsuario,
 } from './services/usuariosService.js';
-import {
-  enviarConfirmacionRegistro,
-  enviarReset,
-  enviarInvitacion,
-  enviarPrueba,
-  getSmtpConfig,
-  type SmtpConfig,
-} from './services/emailService.js';
 import { getBolsa, getPremiosConfig, setPremiosConfig } from './services/premiosService.js';
 
 async function requireUser(req: {
@@ -68,34 +61,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/health', async () => ({ ok: true, ts: new Date().toISOString() }));
 
-  // --- Auth pública: registro y reset envían correo desde NUESTRO servidor ---
-  const registroSchema = z
-    .object({
-      email: z.string().email(),
-      password: z.string().min(6),
-      display_name: z.string().min(1),
-    })
-    .strict();
-
-  app.post('/api/auth/registro', async (req, reply) => {
-    const parsed = registroSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'Datos inválidos', detalles: parsed.error.issues });
-    }
-    try {
-      await enviarConfirmacionRegistro(
-        parsed.data.email,
-        parsed.data.password,
-        parsed.data.display_name,
-        origenDe(req),
-      );
-      return reply.send({ ok: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const code = /already|exist|registered/i.test(msg) ? 409 : 400;
-      return reply.code(code).send({ error: msg });
-    }
-  });
+  // (El registro y el reset de contraseña los maneja Supabase Auth desde el
+  // cliente; Supabase envía esos correos con el SMTP configurado en su panel.)
 
   // --- Goleadores del torneo (football-data, con caché en memoria) ---
   let goleadoresCache: { ts: number; data: GoleadorFD[] } | null = null;
@@ -124,18 +91,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
     }
-  });
-
-  app.post('/api/auth/reset', async (req, reply) => {
-    const parsed = z.object({ email: z.string().email() }).strict().safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: 'Correo inválido' });
-    try {
-      await enviarReset(parsed.data.email, origenDe(req));
-    } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
-    }
-    // Siempre ok (no revelar si el correo existe).
-    return reply.send({ ok: true });
   });
 
   // --- Pronóstico (usuario autenticado) ---
@@ -384,8 +339,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
     const db = getServiceClient();
     try {
-      const redirectTo = origenDe(req);
-      const id = await enviarInvitacion(parsed.data.email, parsed.data.display_name, redirectTo);
+      const { id } = await invitarUsuario(db, parsed.data.email, parsed.data.display_name, origenDe(req));
       await db.from('audit_log').insert({
         admin_id: admin.userId,
         accion: 'usuario_crear',
@@ -459,55 +413,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ==========================================================================
-  // Configuración SMTP (solo super_admin). La contraseña NUNCA se devuelve.
-  // ==========================================================================
-  const smtpSchema = z
-    .object({
-      host: z.string().min(1),
-      port: z.number().int().positive(),
-      secure: z.boolean(),
-      username: z.string().min(1),
-      password: z.string().optional(), // solo se actualiza si viene
-      sender_email: z.string().email(),
-      sender_name: z.string().min(1),
-      habilitado: z.boolean(),
-    })
-    .strict();
-
-  function sinClave(cfg: SmtpConfig | null) {
-    if (!cfg) return null;
-    const { password, ...resto } = cfg;
-    return { ...resto, password_set: Boolean(password) };
-  }
-
-  app.get('/api/admin/smtp', async (req, reply) => {
-    if (!(await requireSuperAdmin(req))) return reply.code(403).send({ error: 'Solo super admin' });
-    try {
-      return reply.send({ ok: true, config: sinClave(await getSmtpConfig()) });
-    } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  app.put('/api/admin/smtp', async (req, reply) => {
-    const admin = await requireSuperAdmin(req);
-    if (!admin) return reply.code(403).send({ error: 'Solo super admin' });
-    const parsed = smtpSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'Config inválida', detalles: parsed.error.issues });
-    }
-    const db = getServiceClient();
-    // No pisar la contraseña si el campo viene vacío/ausente.
-    const { password, ...resto } = parsed.data;
-    const patch: Record<string, unknown> = { ...resto, updated_at: new Date().toISOString() };
-    if (password) patch.password = password;
-    const { error } = await db.from('config_smtp').update(patch).eq('id', 1);
-    if (error) return reply.code(500).send({ error: error.message });
-    await db.from('audit_log').insert({ admin_id: admin.userId, accion: 'smtp_config', detalle: { ...resto } });
-    return reply.send({ ok: true });
-  });
-
   // --- Configuración de premios (solo super_admin) ---
   const premiosSchema = z
     .object({
@@ -543,18 +448,4 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.post('/api/admin/smtp/test', async (req, reply) => {
-    const admin = await requireSuperAdmin(req);
-    if (!admin) return reply.code(403).send({ error: 'Solo super admin' });
-    const parsed = z.object({ to: z.string().email() }).strict().safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: 'Correo de prueba inválido' });
-    try {
-      const cfg = await getSmtpConfig();
-      if (!cfg) return reply.code(400).send({ error: 'No hay configuración SMTP guardada.' });
-      await enviarPrueba(cfg, parsed.data.to);
-      return reply.send({ ok: true });
-    } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
 }
