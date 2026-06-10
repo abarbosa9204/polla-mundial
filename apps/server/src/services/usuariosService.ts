@@ -72,7 +72,7 @@ export async function invitarUsuario(
   const id = data.user.id;
   const { error: e2 } = await db
     .from('profiles')
-    .update({ display_name: displayName, estado: 'aprobado' })
+    .update({ display_name: displayName, estado: 'aprobado', pagado: true })
     .eq('id', id);
   if (e2) throw new Error(e2.message);
   return { id };

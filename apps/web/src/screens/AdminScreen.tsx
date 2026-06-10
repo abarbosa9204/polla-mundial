@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider.js';
 import {
@@ -340,6 +340,7 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
   });
   const [busy, setBusy] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
   const [nuevoEmail, setNuevoEmail] = useState('');
   const [nuevoNombre, setNuevoNombre] = useState('');
 
@@ -368,111 +369,97 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
     setNuevoNombre('');
   }
 
-  const lista = usuarios.data ?? [];
-  const pendientes = lista.filter((u) => u.estado === 'pendiente').length;
+  const t = busca.trim().toLowerCase();
+  const lista = (usuarios.data ?? []).filter((u) =>
+    t ? u.display_name.toLowerCase().includes(t) || (u.email ?? '').toLowerCase().includes(t) : true,
+  );
+  const btn = 'btn-ghost text-[11px] px-2 py-1 whitespace-nowrap';
 
   return (
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Gestión de usuarios</h2>
-        {pendientes > 0 && (
-          <span className="text-xs rounded-full bg-amber-500/20 text-amber-300 px-2 py-0.5">
-            {pendientes} por aprobar
-          </span>
-        )}
+        <button onClick={refrescar} className="text-xs text-brand">↻ Refrescar</button>
       </div>
 
-      {/* Crear usuario por invitación */}
-      <div className="rounded-xl bg-slate-800/60 p-3 space-y-2">
-        <p className="text-xs text-slate-400">Crear usuario (le llega un correo para fijar su contraseña; queda aprobado).</p>
-        <input
-          type="email"
-          placeholder="correo@ejemplo.com"
-          value={nuevoEmail}
-          onChange={(e) => setNuevoEmail(e.target.value)}
-          className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm"
-        />
-        <input
-          placeholder="Nombre para la tabla"
-          value={nuevoNombre}
-          onChange={(e) => setNuevoNombre(e.target.value)}
-          className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm"
-        />
-        <button disabled={busy || !nuevoEmail || !nuevoNombre} onClick={crear} className="btn-primary w-full text-sm">
-          Invitar usuario
-        </button>
-      </div>
+      {/* Crear usuario por invitación (colapsable) */}
+      <details className="rounded-xl bg-slate-800/60 p-3">
+        <summary className="text-sm cursor-pointer select-none">➕ Crear / invitar usuario</summary>
+        <div className="space-y-2 mt-2">
+          <input type="email" placeholder="correo@ejemplo.com" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm" />
+          <input placeholder="Nombre para la tabla" value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm" />
+          <button disabled={busy || !nuevoEmail || !nuevoNombre} onClick={crear} className="btn-primary w-full text-sm">Invitar usuario</button>
+          <p className="text-[11px] text-slate-400">Le llega un correo para fijar su contraseña; queda activo y pagado.</p>
+        </div>
+      </details>
+
+      {/* Buscador */}
+      <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre o correo…" className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm" />
 
       {usuarios.isLoading && <p className="text-sm text-slate-400">Cargando usuarios…</p>}
-      {usuarios.isError && <p className="text-sm text-red-400">No se pudo cargar la lista.</p>}
+      {usuarios.isError && <p className="text-sm text-red-400">No se pudo cargar (revisa tu conexión y reintenta).</p>}
 
-      <ul className="space-y-2">
-        {lista.map((u) => (
-          <li key={u.id} className="rounded-xl bg-slate-800/60 p-3 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium truncate">{u.display_name}</p>
-                <p className="text-xs text-slate-400 truncate">{u.email}</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  <span className={`text-[10px] rounded-full px-2 py-0.5 ${BADGE[u.estado]}`}>{ESTADO_LABEL[u.estado] ?? u.estado}</span>
-                  {u.role !== 'user' && (
-                    <span className="text-[10px] rounded-full px-2 py-0.5 bg-brand/20 text-brand">{u.role}</span>
-                  )}
-                  {!u.email_confirmado && (
-                    <span className="text-[10px] rounded-full px-2 py-0.5 bg-slate-600/40 text-slate-300">sin confirmar</span>
-                  )}
-                  <span className={`text-[10px] rounded-full px-2 py-0.5 ${u.pagado ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-600/40 text-slate-300'}`}>
-                    {u.pagado ? '✓ pagado' : 'sin pago'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {u.estado !== 'aprobado' && (
-                <button disabled={busy} onClick={() => accion(() => adminEstadoUsuario(u.id, 'aprobado'), 'Usuario activado ✓')} className="btn-ghost text-xs px-2 py-1 text-emerald-300">
-                  Activar
-                </button>
-              )}
-              {u.estado !== 'rechazado' && u.role !== 'super_admin' && (
-                <button disabled={busy} onClick={() => accion(() => adminEstadoUsuario(u.id, 'rechazado'), 'Usuario inactivado')} className="btn-ghost text-xs px-2 py-1 text-amber-300">
-                  Inactivar
-                </button>
-              )}
-              <button
-                disabled={busy}
-                onClick={() => accion(() => adminEditarUsuario(u.id, { pagado: !u.pagado }), u.pagado ? 'Pago retirado' : 'Pago confirmado ✓')}
-                className={`btn-ghost text-xs px-2 py-1 ${u.pagado ? 'text-slate-300' : 'text-emerald-300'}`}
-              >
-                {u.pagado ? 'Quitar pago' : 'Marcar pagado'}
-              </button>
-              <button disabled={busy} onClick={() => setEditando(editando === u.id ? null : u.id)} className="btn-ghost text-xs px-2 py-1">
-                Editar
-              </button>
-              {u.role !== 'super_admin' && (
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    if (confirm(`¿Eliminar a ${u.display_name}? Se borran sus pronósticos y puntos.`))
-                      accion(() => adminEliminarUsuario(u.id), 'Usuario eliminado');
-                  }}
-                  className="btn-ghost text-xs px-2 py-1 text-red-400"
-                >
-                  Eliminar
-                </button>
-              )}
-            </div>
-
-            {editando === u.id && (
-              <EditarUsuario
-                usuario={u}
-                busy={busy}
-                onGuardar={(cambios) => accion(() => adminEditarUsuario(u.id, cambios), 'Usuario actualizado ✓').then(() => setEditando(null))}
-              />
+      {/* Tabla */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[11px] text-slate-400 text-left border-b border-white/10">
+              <th className="py-1.5 pr-2 font-normal">Usuario</th>
+              <th className="py-1.5 px-2 font-normal">Estado</th>
+              <th className="py-1.5 px-2 font-normal">Pago</th>
+              <th className="py-1.5 pl-2 font-normal text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((u) => (
+              <Fragment key={u.id}>
+                <tr className="border-b border-white/5 align-top">
+                  <td className="py-2 pr-2">
+                    <p className="font-medium truncate max-w-[150px]">{u.display_name}</p>
+                    <p className="text-[11px] text-slate-400 truncate max-w-[150px]">{u.email}</p>
+                    {(!u.email_confirmado || u.role !== 'user') && (
+                      <p className="mt-0.5 flex gap-1">
+                        {!u.email_confirmado && <span className="text-[10px] text-amber-300">sin confirmar</span>}
+                        {u.role !== 'user' && <span className="text-[10px] text-brand">{u.role}</span>}
+                      </p>
+                    )}
+                  </td>
+                  <td className="py-2 px-2">
+                    <span className={`text-[10px] rounded-full px-2 py-0.5 ${BADGE[u.estado]}`}>{ESTADO_LABEL[u.estado] ?? u.estado}</span>
+                  </td>
+                  <td className="py-2 px-2">
+                    <span className={`text-[10px] rounded-full px-2 py-0.5 ${u.pagado ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-600/40 text-slate-300'}`}>{u.pagado ? 'pagado' : 'sin pago'}</span>
+                  </td>
+                  <td className="py-2 pl-2">
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      {u.role !== 'super_admin' && (u.estado === 'aprobado' ? (
+                        <button disabled={busy} onClick={() => accion(() => adminEstadoUsuario(u.id, 'rechazado'), 'Usuario suspendido')} className={`${btn} text-amber-300`}>Suspender</button>
+                      ) : (
+                        <button disabled={busy} onClick={() => accion(() => adminEstadoUsuario(u.id, 'aprobado'), 'Usuario activado ✓')} className={`${btn} text-emerald-300`}>Activar</button>
+                      ))}
+                      <button disabled={busy} onClick={() => accion(() => adminEditarUsuario(u.id, { pagado: !u.pagado }), u.pagado ? 'Pago retirado' : 'Pago confirmado ✓')} className={`${btn} ${u.pagado ? 'text-slate-300' : 'text-emerald-300'}`}>{u.pagado ? 'Quitar pago' : 'Marcar pagado'}</button>
+                      <button disabled={busy} onClick={() => setEditando(editando === u.id ? null : u.id)} className={btn}>Editar</button>
+                      {u.role !== 'super_admin' && (
+                        <button disabled={busy} onClick={() => { if (confirm(`¿Eliminar a ${u.display_name}? Se borran sus pronósticos y puntos.`)) accion(() => adminEliminarUsuario(u.id), 'Usuario eliminado'); }} className={`${btn} text-red-400`}>Eliminar</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                {editando === u.id && (
+                  <tr className="border-b border-white/5">
+                    <td colSpan={4} className="py-2">
+                      <EditarUsuario usuario={u} busy={busy} onGuardar={(cambios) => accion(() => adminEditarUsuario(u.id, cambios), 'Usuario actualizado ✓').then(() => setEditando(null))} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+            {lista.length === 0 && !usuarios.isLoading && (
+              <tr><td colSpan={4} className="py-6 text-center text-slate-400">{busca ? 'Sin resultados.' : 'No hay usuarios aún.'}</td></tr>
             )}
-          </li>
-        ))}
-      </ul>
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
