@@ -75,13 +75,32 @@ function FilaTabla({
   abierta: boolean;
   onToggle: () => void;
 }) {
+  const pos = f.posicion ?? 0;
+  const podio = pos >= 1 && pos <= 3;
+  const anillo = esYo
+    ? 'ring-2 ring-brand'
+    : pos === 1
+      ? 'ring-1 ring-amber-400/60'
+      : pos === 2
+        ? 'ring-1 ring-slate-300/40'
+        : pos === 3
+          ? 'ring-1 ring-orange-500/40'
+          : '';
   return (
     <li>
       <button
         onClick={onToggle}
-        className={`card w-full p-3 flex items-center gap-3 text-left ${esYo ? 'ring-2 ring-brand' : ''}`}
+        className={`card w-full p-3 flex items-center gap-3 text-left ${anillo}`}
       >
-        <span className="w-6 text-center font-bold text-slate-300">{f.posicion ?? '-'}</span>
+        <span className="w-7 text-center shrink-0">
+          {podio ? (
+            <span className="text-lg leading-none" aria-label={`Puesto ${pos}`}>
+              {pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉'}
+            </span>
+          ) : (
+            <span className="font-bold text-slate-300 tabular-nums">{f.posicion ?? '-'}</span>
+          )}
+        </span>
         <Movimiento v={f.movimiento} />
         <span className="flex-1 min-w-0 truncate font-medium">
           {f.display_name} {esYo && <span className="text-brand text-xs">(tú)</span>}
@@ -158,8 +177,16 @@ function MarcadoresUsuario({ userId }: { userId: string }) {
   );
 }
 
+/** Indicador de cambio de posición desde el último recálculo: subió, bajó o se mantuvo. */
 function Movimiento({ v }: { v: number }) {
-  if (v > 0) return <span className="text-emerald-400 text-xs w-4">▲{v}</span>;
-  if (v < 0) return <span className="text-red-400 text-xs w-4">▼{-v}</span>;
-  return <span className="text-slate-600 text-xs w-4">–</span>;
+  const base = 'shrink-0 w-8 text-center text-[11px] font-semibold tabular-nums rounded-md py-0.5';
+  if (v > 0)
+    return (
+      <span className={`${base} text-emerald-400 bg-emerald-400/10`} title={`Subió ${v} puesto(s)`}>▲{v}</span>
+    );
+  if (v < 0)
+    return (
+      <span className={`${base} text-red-400 bg-red-400/10`} title={`Bajó ${-v} puesto(s)`}>▼{-v}</span>
+    );
+  return <span className={`${base} text-slate-600`} title="Sin cambios">–</span>;
 }

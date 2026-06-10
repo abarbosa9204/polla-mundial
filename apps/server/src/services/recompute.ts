@@ -116,6 +116,8 @@ export async function recomputarTodo(repo: SupabaseRepo): Promise<RecomputeResum
   // --- Tabla de posiciones ---
   const tabla = construirTablaPosiciones(usuariosTabla, todosLosDesgloses, previas);
   await repo.upsertTabla(tabla);
+  // Quitar filas obsoletas (super admin que no participa, o usuarios eliminados).
+  await repo.limpiarTablaExcepto(usuariosTabla.map((u) => u.userId));
 
   return { partidosPuntuados, partidosSellados, usuarios: usuarios.length };
 }

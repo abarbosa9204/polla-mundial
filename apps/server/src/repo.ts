@@ -99,12 +99,28 @@ export class SupabaseRepo implements PronosticoRepo {
   }
 
   async getUsuarios(): Promise<{ userId: string; displayName: string }[]> {
-    const { data, error } = await this.db.from('profiles').select('id, display_name');
+    // El super admin administra la polla pero NO participa: se excluye de la
+    // sumatoria, los desgloses y la tabla de posiciones.
+    const { data, error } = await this.db
+      .from('profiles')
+      .select('id, display_name, role')
+      .neq('role', 'super_admin');
     if (error) throw error;
     return (data ?? []).map((r) => ({
       userId: r.id as string,
       displayName: r.display_name as string,
     }));
+  }
+
+  /** Elimina filas de la tabla de posiciones que no estén entre `userIds` (p. ej. el super admin o usuarios borrados). */
+  async limpiarTablaExcepto(userIds: readonly string[]): Promise<void> {
+    let q = this.db.from('tabla_posiciones').delete();
+    // Si no hay usuarios participantes, borra todo.
+    if (userIds.length > 0) {
+      q = q.not('user_id', 'in', `(${userIds.map((id) => `"${id}"`).join(',')})`);
+    }
+    const { error } = await q;
+    if (error) throw error;
   }
 
   async getResultadosTorneo(): Promise<{

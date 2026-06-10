@@ -63,11 +63,12 @@ export async function getBolsa(): Promise<Bolsa> {
   const db = getServiceClient();
   const [cfg, perfiles] = await Promise.all([
     getPremiosConfig(),
-    db.from('profiles').select('estado, pagado'),
+    // El super admin administra pero no participa: se excluye de la bolsa.
+    db.from('profiles').select('estado, pagado, role').neq('role', 'super_admin'),
   ]);
   if (perfiles.error) throw new Error(perfiles.error.message);
 
-  // Bolsa = inscripción × usuarios APROBADOS y con PAGO confirmado.
+  // Bolsa = inscripción × usuarios APROBADOS y con PAGO confirmado (sin super admin).
   const aportantes = (perfiles.data ?? []).filter(
     (p) => p.estado === 'aprobado' && p.pagado === true,
   ).length;
