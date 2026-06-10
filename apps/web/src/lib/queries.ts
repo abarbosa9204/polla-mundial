@@ -15,6 +15,27 @@ export interface EquipoView {
   crest_url: string | null;
 }
 
+export interface InfoPagoPublico {
+  valorInscripcion: number;
+  moneda: string;
+}
+
+/**
+ * Valor de inscripción + moneda, legible SIN sesión (pantalla de login). Va por
+ * una función pública (security definer), no por el endpoint del servidor, para
+ * no depender de que Render esté despierto. Nunca lanza: si falla, el login sigue.
+ */
+export async function fetchInfoPagoPublico(): Promise<InfoPagoPublico | null> {
+  const { data, error } = await supabase.rpc('info_pago_publico');
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    valorInscripcion: Number((row as { valor_inscripcion: number }).valor_inscripcion ?? 0),
+    moneda: (row as { moneda: string }).moneda ?? 'COP',
+  };
+}
+
 export async function fetchPartidos(): Promise<PartidoRow[]> {
   const { data, error } = await supabase
     .from('partidos')

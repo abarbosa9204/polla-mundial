@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.js';
 import { getLS, setLS, delLS } from '../lib/storage.js';
+import { PagoInfo } from '../components/PagoInfo.js';
 
 type Modo = 'login' | 'registro' | 'recuperar';
 
@@ -167,6 +168,8 @@ export function LoginScreen() {
         >
           {modo === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
         </button>
+
+        {modo !== 'recuperar' && <PagoInfo />}
       </div>
     </div>
   );
