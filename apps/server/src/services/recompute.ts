@@ -27,6 +27,17 @@ import {
 
 const RONDAS: RondaClasificacion[] = ['R32', 'R16', 'CUARTOS', 'SEMIS', 'FINAL'];
 
+// Etiqueta legible de cada categoría de bono, para el detalle de los parciales.
+const ETIQUETA_BONO: Record<string, string> = {
+  clasificado16avos: '16avos',
+  clasificadoOctavos: 'Octavos',
+  clasificadoCuartos: 'Cuartos',
+  clasificadoSemis: 'Semis',
+  clasificadoFinal: 'Final',
+  goleador: 'Goleador',
+  campeon: 'Campeón',
+};
+
 export interface RecomputeResumen {
   partidosPuntuados: number;
   partidosSellados: number;
@@ -120,7 +131,14 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
       config,
     );
     const bonosVivos = computarBonosUsuario(picksU, resultadosVivos, config);
-    const puntosBonosParciales = Math.max(0, bonosVivos.total - bonos.total);
+    // Desglose del parcial POR CATEGORÍA = (en vivo) − (oficial) por tipo, ≥0.
+    const oficialPorTipo = new Map(bonos.detalle.map((d) => [d.tipo, d.total]));
+    const bonosParcialesDetalle: Record<string, number> = {};
+    for (const d of bonosVivos.detalle) {
+      const p = Math.max(0, d.total - (oficialPorTipo.get(d.tipo) ?? 0));
+      if (p > 0) bonosParcialesDetalle[ETIQUETA_BONO[d.tipo] ?? d.tipo] = p;
+    }
+    const puntosBonosParciales = Object.values(bonosParcialesDetalle).reduce((s, v) => s + v, 0);
 
     return {
       userId: u.userId,
@@ -130,6 +148,7 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
         : null,
       puntosBonos: bonos.total,
       puntosBonosParciales,
+      bonosParcialesDetalle,
     };
   });
 

@@ -47,4 +47,6 @@ export interface UsuarioTabla {
   puntosBonos: number;
   /** Bonos PARCIALES (en curso, p. ej. goleador si el pick va de líder). Suman a provisionales. */
   puntosBonosParciales?: number;
+  /** Desglose de los bonos parciales por categoría ({ '16avos': 2, Goleador: 0 }). */
+  bonosParcialesDetalle?: Record<string, number>;
 }

@@ -23,6 +23,8 @@ export interface FilaTablaResultado {
   posicion: number;
   /** +n subió, -n bajó. PERSISTE el último cambio hasta que la posición cambie otra vez. */
   movimiento: number;
+  /** Desglose de los bonos parciales por categoría (para el detalle). */
+  bonosParcialesDetalle?: Record<string, number>;
 }
 
 interface Acumulado {
@@ -66,6 +68,7 @@ export function construirTablaPosiciones(
       marcadoresExactos: a.exactos,
       resultados1x2: a.x1x2,
       timestampCampeon: u.timestampCampeon,
+      bonosParcialesDetalle: u.bonosParcialesDetalle,
     };
   });
 

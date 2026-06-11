@@ -120,17 +120,31 @@ function FilaTabla({
             <span>Marcadores exactos: <b className="text-slate-200">{f.marcadores_exactos}</b></span>
             <span>Acertó ganador/empate: <b className="text-slate-200">{f.resultados_1x2}</b></span>
           </div>
-          {f.puntos_provisionales > 0 && (
-            <p className="text-[11px] text-amber-300/80">
-              Los <b>parciales</b> pueden cambiar: incluyen partidos en juego y bonos en curso
-              (<b>goleador</b> si el jugador que elegiste va de líder y <b>clasificados</b> según
-              cómo van los grupos/llaves). Los bonos se confirman al terminar el Mundial.
-            </p>
-          )}
+          {f.puntos_provisionales > 0 && <DesglosePartial f={f} />}
           <MarcadoresUsuario userId={f.user_id} />
         </div>
       )}
     </li>
+  );
+}
+
+/** Desglose claro de los puntos PARCIALES: en juego (partidos) + bonos por ronda. */
+function DesglosePartial({ f }: { f: TablaPosicionRow }) {
+  const bonos = f.bonos_parciales ?? {};
+  const sumaBonos = Object.values(bonos).reduce((s, v) => s + (v || 0), 0);
+  const enJuego = f.puntos_provisionales - sumaBonos;
+  const lineasBonos = Object.entries(bonos).filter(([, v]) => v > 0);
+  return (
+    <div className="text-[11px] text-amber-300/90 space-y-0.5">
+      <div className="text-slate-400">Tus parciales (pueden cambiar):</div>
+      {enJuego > 0 && <div>• En juego (partidos): <b>+{enJuego}</b></div>}
+      {lineasBonos.map(([k, v]) => (
+        <div key={k}>• {k === 'Goleador' ? 'Goleador' : `Clasificados a ${k}`}: <b>+{v}</b></div>
+      ))}
+      <div className="text-slate-500 pt-0.5">
+        Los marcadores en juego y los bonos parciales se confirman al avanzar/terminar el Mundial.
+      </div>
+    </div>
   );
 }
 

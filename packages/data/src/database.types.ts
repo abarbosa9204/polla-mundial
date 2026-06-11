@@ -72,6 +72,8 @@ export interface TablaPosicionRow {
   posicion: number | null;
   posicion_confirmada: number | null;
   movimiento: number;
+  /** Desglose de bonos parciales por categoría: { '16avos': 2, Goleador: 0 }. */
+  bonos_parciales: Record<string, number> | null;
   updated_at: string;
 }
 

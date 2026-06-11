@@ -227,26 +227,39 @@ export class SupabaseRepo implements PronosticoRepo {
       timestampCampeon: number | null;
       posicion: number;
       movimiento: number;
+      bonosParcialesDetalle?: Record<string, number>;
     }[],
   ): Promise<void> {
     if (filas.length === 0) return;
-    const { error } = await this.db.from('tabla_posiciones').upsert(
-      filas.map((f) => ({
-        user_id: f.userId,
-        display_name: f.displayName,
-        puntos_confirmados: f.puntosConfirmados,
-        puntos_provisionales: f.puntosProvisionales,
-        puntos_totales: f.puntosTotales,
-        marcadores_exactos: f.marcadoresExactos,
-        resultados_1x2: f.resultados1x2,
-        timestamp_campeon:
-          f.timestampCampeon != null ? new Date(f.timestampCampeon).toISOString() : null,
-        posicion: f.posicion,
-        movimiento: f.movimiento,
-      })),
-      { onConflict: 'user_id' },
-    );
-    if (error) throw error;
+    const rows = filas.map((f) => ({
+      user_id: f.userId,
+      display_name: f.displayName,
+      puntos_confirmados: f.puntosConfirmados,
+      puntos_provisionales: f.puntosProvisionales,
+      puntos_totales: f.puntosTotales,
+      marcadores_exactos: f.marcadoresExactos,
+      resultados_1x2: f.resultados1x2,
+      timestamp_campeon:
+        f.timestampCampeon != null ? new Date(f.timestampCampeon).toISOString() : null,
+      posicion: f.posicion,
+      movimiento: f.movimiento,
+      bonos_parciales: f.bonosParcialesDetalle ?? {},
+    }));
+    const { error } = await this.db.from('tabla_posiciones').upsert(rows, { onConflict: 'user_id' });
+    if (error) {
+      // RESILIENTE: si la columna `bonos_parciales` aún no está migrada en este
+      // entorno, reintentar sin ella (la tabla sigue funcionando; solo no se
+      // guarda el desglose hasta aplicar la migración 0017).
+      if (/bonos_parciales/i.test(error.message)) {
+        const sinCol = rows.map(({ bonos_parciales, ...r }) => r);
+        const { error: e2 } = await this.db
+          .from('tabla_posiciones')
+          .upsert(sinCol, { onConflict: 'user_id' });
+        if (e2) throw e2;
+        return;
+      }
+      throw error;
+    }
   }
 
   async upsertPartido(row: Record<string, unknown>): Promise<void> {
