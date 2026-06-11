@@ -45,4 +45,6 @@ export interface UsuarioTabla {
   timestampCampeon: number | null;
   /** Puntos de bonos de torneo ya confirmados (clasificados, campeón, goleador). */
   puntosBonos: number;
+  /** Bonos PARCIALES (en curso, p. ej. goleador si el pick va de líder). Suman a provisionales. */
+  puntosBonosParciales?: number;
 }

@@ -206,7 +206,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/admin/recompute', async (req, reply) => {
     if (!(await requireAdminOrTask(req))) return reply.code(403).send({ error: 'Prohibido' });
-    const r = await recomputarTodo(repo);
+    const r = await recomputarTodo(repo, env);
     return reply.send({ ok: true, ...r });
   });
 
@@ -250,7 +250,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (error) return reply.code(500).send({ error: error.message });
 
     // Toda corrección dispara recálculo total (sección 9).
-    const r = await recomputarTodo(repo);
+    const r = await recomputarTodo(repo, env);
     await db.from('audit_log').insert({
       admin_id: user.userId,
       accion: flag ? 'correccion_partido' : 'liberar_partido',
@@ -281,7 +281,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .update({ ...parsed.data, updated_at: new Date().toISOString() })
       .eq('id', 1);
     if (error) return reply.code(500).send({ error: error.message });
-    const r = await recomputarTodo(repo);
+    const r = await recomputarTodo(repo, env);
     await db.from('audit_log').insert({
       admin_id: user.userId,
       accion: 'resultados_torneo',
@@ -364,7 +364,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         detalle: { id, email: parsed.data.email },
       });
       // El invitado queda aprobado+pagado ⇒ reconstruir la tabla para que aparezca ya.
-      try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras invitar usuario falló'); }
+      try { await recomputarTodo(repo, env); } catch (err) { req.log.error({ err }, 'recompute tras invitar usuario falló'); }
       return reply.send({ ok: true, id });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
@@ -388,7 +388,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         detalle: { id, estado: parsed.data.estado },
       });
       // Cambió la participación ⇒ reconstruir la tabla (aparece/desaparece ya).
-      try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras cambio de estado falló'); }
+      try { await recomputarTodo(repo, env); } catch (err) { req.log.error({ err }, 'recompute tras cambio de estado falló'); }
       return reply.send({ ok: true });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
@@ -414,7 +414,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       });
       // Si cambió la marca de pago, reconstruir la tabla (aparece/desaparece ya).
       if (parsed.data.pagado !== undefined) {
-        try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras marcar pago falló'); }
+        try { await recomputarTodo(repo, env); } catch (err) { req.log.error({ err }, 'recompute tras marcar pago falló'); }
       }
       return reply.send({ ok: true });
     } catch (err) {

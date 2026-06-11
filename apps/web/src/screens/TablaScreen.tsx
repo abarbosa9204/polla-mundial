@@ -41,7 +41,7 @@ export function TablaScreen() {
         />
         <div className="flex items-center gap-3 text-[11px] text-slate-400 px-2 mb-2">
           <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Confirmados</span>
-          <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Provisionales (en juego)</span>
+          <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Parciales (en juego + bonos)</span>
         </div>
         <ul className="space-y-1.5">
           {filas.map((f) => (
@@ -115,11 +115,17 @@ function FilaTabla({
       {abierta && (
         <div className="px-4 py-2 space-y-2">
           <div className="text-xs text-slate-400 grid grid-cols-2 gap-1">
-            <span>Confirmados: <b className="text-emerald-400">{f.puntos_confirmados}</b></span>
-            <span>Provisionales: <b className="text-amber-400">{f.puntos_provisionales}</b></span>
+            <span>Firmes: <b className="text-emerald-400">{f.puntos_confirmados}</b></span>
+            <span>Parciales: <b className="text-amber-400">{f.puntos_provisionales}</b></span>
             <span>Marcadores exactos: <b className="text-slate-200">{f.marcadores_exactos}</b></span>
             <span>Acertó ganador/empate: <b className="text-slate-200">{f.resultados_1x2}</b></span>
           </div>
+          {f.puntos_provisionales > 0 && (
+            <p className="text-[11px] text-amber-300/80">
+              Los <b>parciales</b> pueden cambiar: incluyen partidos en juego y bonos en curso
+              (p. ej. <b>goleador</b> si el pick va de líder). Los bonos se confirman al terminar el Mundial.
+            </p>
+          )}
           <MarcadoresUsuario userId={f.user_id} />
         </div>
       )}

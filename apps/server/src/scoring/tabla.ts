@@ -52,16 +52,17 @@ export function construirTablaPosiciones(
     }
   }
 
-  // Fila por usuario (incluye bonos en los confirmados).
+  // Fila por usuario (bonos confirmados → confirmados; bonos parciales → provisionales).
   const filas = usuarios.map((u) => {
     const a = acc.get(u.userId)!;
     const confirmados = a.conf + u.puntosBonos;
+    const provisionales = a.prov + (u.puntosBonosParciales ?? 0);
     return {
       userId: u.userId,
       displayName: u.displayName,
       puntosConfirmados: confirmados,
-      puntosProvisionales: a.prov,
-      puntosTotales: confirmados + a.prov,
+      puntosProvisionales: provisionales,
+      puntosTotales: confirmados + provisionales,
       marcadoresExactos: a.exactos,
       resultados1x2: a.x1x2,
       timestampCampeon: u.timestampCampeon,

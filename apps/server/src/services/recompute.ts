@@ -6,7 +6,9 @@
  *
  * Reejecutarlo con los mismos datos produce siempre el mismo resultado.
  */
-import type { ConfigPuntos } from '@polla/core';
+import { calcularBonoGoleador, type ConfigPuntos } from '@polla/core';
+import type { Env } from '../env.js';
+import { fetchGoleadoresVivosIds } from '../poller/footballDataClient.js';
 import {
   computarDesglosesPartido,
   construirTablaPosiciones,
@@ -30,7 +32,7 @@ export interface RecomputeResumen {
   usuarios: number;
 }
 
-export async function recomputarTodo(repo: SupabaseRepo): Promise<RecomputeResumen> {
+export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<RecomputeResumen> {
   const [config, partidos, usuarios, resultados, bonosPicks, previas] =
     await Promise.all([
       repo.getConfig(),
@@ -40,6 +42,10 @@ export async function recomputarTodo(repo: SupabaseRepo): Promise<RecomputeResum
       repo.getBonosPicks(),
       repo.getPosicionesPrevias(),
     ]);
+
+  // Goleador(es) líder(es) en vivo (para el bono de goleador PARCIAL). Sin env
+  // (recálculos que no lo pasan) o si la API falla ⇒ [] ⇒ no hay parcial.
+  const goleadoresVivos = env ? await fetchGoleadoresVivosIds(env, Date.now()) : [];
 
   const todosLosDesgloses: DesgloseCalculado[] = [];
   let partidosPuntuados = 0;
@@ -103,6 +109,14 @@ export async function recomputarTodo(repo: SupabaseRepo): Promise<RecomputeResum
       },
       config,
     );
+    // Bono de goleador PARCIAL = (líder en vivo) − (oficial ya contado). Durante
+    // el torneo el oficial es 0 ⇒ muestra la proyección; al cargar el oficial al
+    // final, el parcial baja a 0 y pasa a firme. Sin doble conteo.
+    const valGol = config.bonos.goleador;
+    const golVivo = calcularBonoGoleador(pick?.goleador ?? null, goleadoresVivos, valGol).total;
+    const golOficial = calcularBonoGoleador(pick?.goleador ?? null, resultados.goleadores, valGol).total;
+    const puntosBonosParciales = Math.max(0, golVivo - golOficial);
+
     return {
       userId: u.userId,
       displayName: u.displayName,
@@ -110,6 +124,7 @@ export async function recomputarTodo(repo: SupabaseRepo): Promise<RecomputeResum
         ? Date.parse(pick.campeonRegistradoEn)
         : null,
       puntosBonos: bonos.total,
+      puntosBonosParciales,
     };
   });
 

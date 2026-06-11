@@ -153,7 +153,7 @@ export async function runPoller(repo: SupabaseRepo, env: Env): Promise<PollResul
 
     // 3) Recalcular puntos y tabla si hubo partidos en juego/finalizados.
     if (recalcular) {
-      await recomputarTodo(repo);
+      await recomputarTodo(repo, env);
     }
 
     await repo.marcarPollerExito(fuente);

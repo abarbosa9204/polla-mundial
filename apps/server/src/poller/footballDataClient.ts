@@ -58,3 +58,35 @@ export async function fetchGoleadoresFootballData(env: Env, limit = 30): Promise
     asistencias: s.assists ?? null,
   }));
 }
+
+// Caché simple del goleador líder en vivo (evita pegarle a /scorers en cada
+// recálculo). `jugadores.id` coincide con `player.id` de football-data ⇒ se
+// emparejan por ID, sin fragilidad de nombres.
+let goleadoresVivosCache: { ts: number; ids: string[] } | null = null;
+
+/**
+ * IDs (string) del/los goleador(es) LÍDER(es) ahora mismo (máximo de goles).
+ * Para el bono de goleador PARCIAL. Devuelve [] si la API falla o no hay goles.
+ */
+export async function fetchGoleadoresVivosIds(env: Env, ahoraMs: number): Promise<string[]> {
+  if (goleadoresVivosCache && ahoraMs - goleadoresVivosCache.ts < 2 * 60_000) {
+    return goleadoresVivosCache.ids;
+  }
+  try {
+    const res = await fetch(
+      `${BASE}/competitions/${env.FD_COMPETITION}/scorers?limit=20`,
+      { headers: { 'X-Auth-Token': env.FOOTBALL_DATA_TOKEN } },
+    );
+    if (!res.ok) return goleadoresVivosCache?.ids ?? [];
+    const data = (await res.json()) as {
+      scorers?: Array<{ player?: { id?: number }; goals?: number | null }>;
+    };
+    const scorers = (data.scorers ?? []).filter((s) => (s.goals ?? 0) > 0 && s.player?.id != null);
+    const max = scorers.reduce((m, s) => Math.max(m, s.goals ?? 0), 0);
+    const ids = max > 0 ? scorers.filter((s) => (s.goals ?? 0) === max).map((s) => String(s.player!.id)) : [];
+    goleadoresVivosCache = { ts: ahoraMs, ids };
+    return ids;
+  } catch {
+    return goleadoresVivosCache?.ids ?? [];
+  }
+}
