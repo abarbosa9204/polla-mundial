@@ -363,6 +363,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         accion: 'usuario_crear',
         detalle: { id, email: parsed.data.email },
       });
+      // El invitado queda aprobado+pagado ⇒ reconstruir la tabla para que aparezca ya.
+      try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras invitar usuario falló'); }
       return reply.send({ ok: true, id });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
@@ -385,6 +387,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         accion: 'usuario_estado',
         detalle: { id, estado: parsed.data.estado },
       });
+      // Cambió la participación ⇒ reconstruir la tabla (aparece/desaparece ya).
+      try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras cambio de estado falló'); }
       return reply.send({ ok: true });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
@@ -408,6 +412,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         // No registramos la contraseña en el log.
         detalle: { id, email: parsed.data.email, display_name: parsed.data.display_name },
       });
+      // Si cambió la marca de pago, reconstruir la tabla (aparece/desaparece ya).
+      if (parsed.data.pagado !== undefined) {
+        try { await recomputarTodo(repo); } catch (err) { req.log.error({ err }, 'recompute tras marcar pago falló'); }
+      }
       return reply.send({ ok: true });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });

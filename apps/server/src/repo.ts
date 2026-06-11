@@ -99,12 +99,15 @@ export class SupabaseRepo implements PronosticoRepo {
   }
 
   async getUsuarios(): Promise<{ userId: string; displayName: string }[]> {
-    // El super admin administra la polla pero NO participa: se excluye de la
-    // sumatoria, los desgloses y la tabla de posiciones.
+    // Solo PARTICIPANTES: aprobados Y pagados (los que cuentan para la bolsa).
+    // El super admin administra pero NO participa. Así la tabla muestra
+    // exactamente a quienes ya están activos, no a los pendientes/sin pago.
     const { data, error } = await this.db
       .from('profiles')
-      .select('id, display_name, role')
-      .neq('role', 'super_admin');
+      .select('id, display_name, role, estado, pagado')
+      .neq('role', 'super_admin')
+      .eq('estado', 'aprobado')
+      .eq('pagado', true);
     if (error) throw error;
     return (data ?? []).map((r) => ({
       userId: r.id as string,
