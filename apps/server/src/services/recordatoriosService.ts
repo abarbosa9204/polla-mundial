@@ -45,6 +45,11 @@ const ETIQUETA_CLASIFICADOS: Record<RondaClasificacion, string> = {
 
 const RONDAS: RondaClasificacion[] = ['R32', 'R16', 'CUARTOS', 'SEMIS', 'FINAL'];
 
+// Identidad de la PWA para el correo (alineado con el sitio).
+const WEB_URL = 'https://polla-mundial-app-one.vercel.app';
+const MARCA = '#16a34a'; // verde "campo" (igual al tailwind brand)
+const HEADER_BG = '#0f172a'; // tema oscuro del sitio
+
 interface PartidoVentana {
   id: string;
   fase: string;
@@ -146,29 +151,48 @@ function tablaBonos(bonos: BonoVentana[]): string {
     </table>`;
 }
 
-function construirHtml(
-  nombre: string,
-  partidos: PartidoVentana[],
-  bonos: BonoVentana[],
-  siteUrl: string,
-): string {
+function construirHtml(nombre: string, partidos: PartidoVentana[], bonos: BonoVentana[]): string {
   const total = partidos.length + bonos.length;
-  const boton = siteUrl
-    ? `<p style="margin:24px 0 0;"><a href="${siteUrl}" style="background:#16a34a;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;display:inline-block;">Completar mis pronósticos</a></p>`
-    : '';
+  const appUrl = WEB_URL;
   return `
-  <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;color:#111827;">
-    <h2 style="margin:0 0 4px;">Hola, ${nombre}</h2>
-    <p style="margin:0 0 4px;color:#374151;">
-      Tienes <b>${total}</b> pronóstico${total > 1 ? 's' : ''} <b>por completar</b> que se cierran pronto.
-      Lo que no registres antes del cierre suma <b>0 puntos</b>.
-    </p>
-    ${tablaPartidos(partidos)}
-    ${tablaBonos(bonos)}
-    ${boton}
-    <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;">
-      El registro de cada partido cierra 5 minutos antes del inicio. Este es un recordatorio automático de la Polla Mundialista.
-    </p>
+  <div style="background:#f1f5f9;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;border-collapse:collapse;background:#ffffff;border-radius:14px;overflow:hidden;">
+      <tr>
+        <td style="background:${HEADER_BG};padding:18px 24px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;padding-right:12px;">
+              <img src="${appUrl}/pwa-192.png" width="44" height="44" alt="" style="display:block;border-radius:8px;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <div style="color:#ffffff;font-size:18px;font-weight:700;line-height:1.15;">Polla Mundialista 2026 ⚽</div>
+              <div style="color:#94a3b8;font-size:12px;">Recordatorio de pronósticos</div>
+            </td>
+          </tr></table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px;color:#111827;">
+          <h2 style="margin:0 0 6px;font-size:18px;">Hola, ${nombre}</h2>
+          <p style="margin:0 0 4px;color:#374151;font-size:14px;">
+            Tienes <b>${total}</b> pronóstico${total > 1 ? 's' : ''} <b>por completar</b> que se cierran pronto.
+            Lo que no registres antes del cierre suma <b>0 puntos</b>.
+          </p>
+          ${tablaPartidos(partidos)}
+          ${tablaBonos(bonos)}
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;"><tr>
+            <td style="background:${MARCA};border-radius:10px;">
+              <a href="${appUrl}" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;">Completar mis pronósticos</a>
+            </td>
+          </tr></table>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:16px 24px;color:#94a3b8;font-size:12px;">
+          El registro de cada partido cierra 5 minutos antes del inicio.<br/>
+          Polla Mundialista 2026 · recordatorio automático
+        </td>
+      </tr>
+    </table>
   </div>`;
 }
 
@@ -193,20 +217,16 @@ function construirTexto(nombre: string, partidos: PartidoVentana[], bonos: BonoV
   return partes.join('\n');
 }
 
-export async function enviarRecordatorios(opts?: {
-  ventanaHoras?: number;
-  dryRun?: boolean;
-  ahoraMs?: number;
-  siteUrl?: string;
-}): Promise<ResultadoRecordatorios> {
-  const ahora = opts?.ahoraMs ?? Date.now();
-  const ventanaMs = (opts?.ventanaHoras ?? 24) * 60 * 60 * 1000;
-  const dryRun = opts?.dryRun ?? false;
-  const siteUrl = opts?.siteUrl ?? '';
-  const db = getServiceClient();
-  const errores: string[] = [];
-
-  // --- Partidos del torneo (para ventana de marcadores y cierres de bonos) ---
+/**
+ * Cálculo ÚNICO (fuente de verdad) de lo que está por cerrarse en la ventana:
+ * marcadores de partidos con registro abierto + bonos por ronda. Lo usan tanto
+ * el envío como la previsualización, para que NUNCA sean contradictorios.
+ */
+async function calcularPendientesVentana(
+  db: ReturnType<typeof getServiceClient>,
+  ahora: number,
+  ventanaMs: number,
+): Promise<{ ventana: PartidoVentana[]; bonosVentana: BonoVentana[] }> {
   const { data: partidosRaw, error: ePart } = await db
     .from('partidos')
     .select('id, fase, kickoff_utc, estado, equipo_a, equipo_b')
@@ -235,6 +255,8 @@ export async function enviarRecordatorios(opts?: {
     }));
 
   // 2) Bonos: categorías cuyo cierre cae dentro de la ventana y siguen abiertas.
+  //    Cierres POR RONDA exactos (bonosLock): campeón/goleador = primer partido;
+  //    clasificados = primer partido de la ronda previa.
   const kickoffs: PartidoKickoff[] = (partidosRaw ?? [])
     .map((p) => ({ fase: p.fase as PartidoKickoff['fase'], kickoffUtcMs: Date.parse(p.kickoff_utc as string) }))
     .filter((k) => !Number.isNaN(k.kickoffUtcMs));
@@ -253,6 +275,43 @@ export async function enviarRecordatorios(opts?: {
       bonosVentana.push({ clave: `clasif:${r}`, etiqueta: ETIQUETA_CLASIFICADOS[r], cierreMs: cierres.clasificados[r]! });
     }
   }
+  return { ventana, bonosVentana };
+}
+
+/**
+ * HTML para previsualizar la plantilla con DATOS REALES (tiempos exactos del
+ * torneo). Si ahora mismo no hay nada por cerrar, cae a un ejemplo ilustrativo.
+ */
+export async function previewHtml(opts?: { ventanaHoras?: number; ahoraMs?: number; nombre?: string }): Promise<string> {
+  const ahora = opts?.ahoraMs ?? Date.now();
+  const ventanaMs = (opts?.ventanaHoras ?? 24) * 60 * 60 * 1000;
+  let { ventana, bonosVentana } = await calcularPendientesVentana(getServiceClient(), ahora, ventanaMs);
+  if (ventana.length === 0 && bonosVentana.length === 0) {
+    ventana = [
+      { id: '1', fase: 'GRUPOS', kickoffMs: ahora + 5 * 60 * 60 * 1000, nombreA: 'España', nombreB: 'Italia' },
+    ];
+    bonosVentana = [
+      { clave: 'campeon', etiqueta: 'Campeón del torneo', cierreMs: ahora + 5 * 60 * 60 * 1000 },
+    ];
+  }
+  return construirHtml(opts?.nombre ?? 'Angel', ventana, bonosVentana);
+}
+
+export async function enviarRecordatorios(opts?: {
+  ventanaHoras?: number;
+  dryRun?: boolean;
+  ahoraMs?: number;
+  siteUrl?: string;
+  /** Si se indica, SOLO se envía a este correo (para una prueba). */
+  soloEmail?: string;
+}): Promise<ResultadoRecordatorios> {
+  const ahora = opts?.ahoraMs ?? Date.now();
+  const ventanaMs = (opts?.ventanaHoras ?? 24) * 60 * 60 * 1000;
+  const dryRun = opts?.dryRun ?? false;
+  const db = getServiceClient();
+  const errores: string[] = [];
+
+  const { ventana, bonosVentana } = await calcularPendientesVentana(db, ahora, ventanaMs);
 
   // Si no hay nada por cerrar, terminamos sin enviar.
   if (ventana.length === 0 && bonosVentana.length === 0) {
@@ -329,11 +388,13 @@ export async function enviarRecordatorios(opts?: {
   if (!dryRun && cfg) {
     const transporter = crearTransporte(cfg);
     for (const { usuario, faltan, bonos } of mensajes) {
+      // Modo prueba: enviar solo al correo indicado.
+      if (opts?.soloEmail && usuario.email !== opts.soloEmail) continue;
       const total = faltan.length + bonos.length;
       const msg: Mensaje = {
         to: usuario.email as string,
         subject: `⚽ Tienes ${total} pronóstico${total > 1 ? 's' : ''} por completar — Polla Mundialista`,
-        html: construirHtml(usuario.display_name, faltan, bonos, siteUrl),
+        html: construirHtml(usuario.display_name, faltan, bonos),
         text: construirTexto(usuario.display_name, faltan, bonos),
       };
       try {
