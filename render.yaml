@@ -22,6 +22,10 @@ services:
         sync: false
       - key: FOOTBALL_DATA_TOKEN
         sync: false
+      # Fuente ALTERNA de marcador en vivo (sportdb.dev). Sin ella, el poller
+      # solo usa football-data (que en el plan gratis NO da el marcador en vivo).
+      - key: SPORTDB_API_KEY
+        sync: false
       # URL pública de la PWA (Vercel). Si aún no la tienes, pon un placeholder
       # y actualízala después (paso 3). Se usa en los enlaces de los correos.
       - key: SITE_URL
