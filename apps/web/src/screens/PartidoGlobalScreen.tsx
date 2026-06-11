@@ -4,7 +4,7 @@ import {
   fetchPartidos,
   fetchEquipos,
   fetchPronosticosDePartido,
-  fetchPerfiles,
+  fetchTabla,
 } from '../lib/queries.js';
 import { Header, Cargando } from './CalendarioScreen.js';
 import { TeamBadge } from '../components/TeamBadge.js';
@@ -20,7 +20,9 @@ export function PartidoGlobalScreen() {
   const nav = useNavigate();
   const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
   const partidos = useQuery({ queryKey: ['partidos'], queryFn: fetchPartidos });
-  const perfiles = useQuery({ queryKey: ['perfiles'], queryFn: fetchPerfiles });
+  // Participantes = filas de la tabla (aprobado+pagado, sin super admin). Así la
+  // vista global coincide EXACTAMENTE con el ranking; el super admin no aparece.
+  const tabla = useQuery({ queryKey: ['tabla'], queryFn: fetchTabla });
   const pron = useQuery({
     queryKey: ['pronosticosPartido', id],
     queryFn: () => fetchPronosticosDePartido(id!),
@@ -31,10 +33,13 @@ export function PartidoGlobalScreen() {
   if (partidos.isLoading || !partido) return <Cargando />;
 
   // Usuarios sin pronóstico aparecen como "Sin pronóstico (0 pts)" (sección 8).
+  // La lista de participantes sale de la tabla (no de profiles), por lo que el
+  // super admin y los no-pagados quedan fuera, igual que en el ranking.
   const conPronostico = new Set((pron.data ?? []).map((p) => p.user_id));
-  const sinPronostico = [...(perfiles.data ?? new Map()).entries()].filter(
-    ([uid]) => !conPronostico.has(uid),
-  );
+  const nombres = new Map((tabla.data ?? []).map((r) => [r.user_id, r.display_name] as const));
+  const sinPronostico = (tabla.data ?? [])
+    .filter((r) => !conPronostico.has(r.user_id))
+    .map((r) => [r.user_id, r.display_name] as const);
 
   return (
     <div>
@@ -55,7 +60,7 @@ export function PartidoGlobalScreen() {
           {(pron.data ?? []).map((p) => (
             <li key={p.id} className="card p-3 flex items-center justify-between text-sm gap-2">
               <span className="font-medium flex-1 min-w-0 truncate">
-                {perfiles.data?.get(p.user_id) ?? p.user_id.slice(0, 6)}
+                {nombres.get(p.user_id) ?? p.user_id.slice(0, 6)}
               </span>
               <span className="tabular-nums font-bold">{p.marcador_a_90} - {p.marcador_b_90}</span>
               <span className="text-[10px] text-slate-500 w-28 text-right">
