@@ -174,9 +174,18 @@ function MarcadoresUsuario({ userId }: { userId: string }) {
   const lista = pron.data ?? [];
   const pMap = new Map((partidos.data ?? []).map((p) => [p.id, p]));
 
+  // Solo partidos que YA INICIARON (kickoff alcanzado o en juego/finalizado). Para
+  // los pronósticos PROPIOS la RLS devuelve también los de partidos sin empezar,
+  // así que hay que filtrarlos aquí para no mostrar (ni etiquetar "en juego") un
+  // marcador de un partido que aún no arranca.
+  const ahora = Date.now();
+  const iniciado = (p: import('@polla/data').PartidoRow): boolean =>
+    ['IN_PLAY', 'PAUSED', 'FINISHED', 'SUSPENDED'].includes(p.estado) ||
+    Date.parse(p.kickoff_utc) <= ahora;
+
   const visibles = lista
     .map((x) => ({ x, p: pMap.get(x.partido_id) }))
-    .filter((r) => r.p)
+    .filter((r) => r.p && iniciado(r.p))
     .sort((a, b) => a.p!.kickoff_utc.localeCompare(b.p!.kickoff_utc));
 
   if (visibles.length === 0) {
