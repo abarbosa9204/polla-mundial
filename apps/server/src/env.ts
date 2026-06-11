@@ -9,6 +9,10 @@ const envSchema = z.object({
   FOOTBALL_DATA_TOKEN: z.string().min(1),
   API_FOOTBALL_TOKEN: z.string().optional().default(''),
   THESPORTSDB_KEY: z.string().optional().default('3'),
+  // Fuente ALTERNA de marcador en vivo (sportdb.dev / Flashscore). Si está, el
+  // poller la usa para rellenar el marcador EN VIVO cuando football-data va
+  // atrasado. Sin esta clave, todo sigue igual (no se consulta).
+  SPORTDB_API_KEY: z.string().optional().default(''),
   ALERT_WEBHOOK_URL: z.string().url().optional().or(z.literal('')).default(''),
   PORT: z.coerce.number().int().positive().default(8787),
   // Competición de football-data.org para el Mundial:

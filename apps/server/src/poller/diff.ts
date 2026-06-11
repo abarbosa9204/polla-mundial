@@ -39,6 +39,14 @@ export function necesitaActualizar(
     );
   }
 
+  // NO DEGRADAR: si el partido ya está en juego/finalizado (lo puso football-data
+  // o la fuente alterna en vivo), no dejar que una respuesta ATRASADA de la
+  // primaria lo regrese a "programado" o le borre el marcador.
+  const yaAvanzado =
+    actual.estado === 'IN_PLAY' || actual.estado === 'PAUSED' || actual.estado === 'FINISHED';
+  const nuevoMenos = nuevo.estado === 'SCHEDULED' || nuevo.estado === 'TIMED';
+  if (yaAvanzado && nuevoMenos) return false;
+
   return (
     actual.estado !== nuevo.estado ||
     actual.goles_a_90 !== nuevo.golesA90 ||

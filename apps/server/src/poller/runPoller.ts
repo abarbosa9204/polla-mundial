@@ -9,6 +9,8 @@ import { SupabaseRepo } from '../repo.js';
 import { fetchPartidosFootballData } from './footballDataClient.js';
 import { normalizarFootballData } from './footballDataNormalizer.js';
 import { fetchPartidosApiFootball } from './apiFootballClient.js';
+import { fetchMundialEnVivo } from './sportdbClient.js';
+import { traducirPais } from './traducciones.js';
 import { necesitaActualizar, requiereRecalculo } from './diff.js';
 import type { PartidoNormalizado } from './model.js';
 import { recomputarTodo } from '../services/recompute.js';
@@ -88,6 +90,54 @@ export async function runPoller(repo: SupabaseRepo, env: Env): Promise<PollResul
         cambios++;
         if (requiereRecalculo(n)) recalcular = true;
       }
+    }
+
+    // 2.5) Fuente ALTERNA en vivo (sportdb): rellena el marcador EN VIVO cuando
+    // football-data va atrasado. Best-effort: jamás tumba el ciclo del poller.
+    try {
+      const envivo = await fetchMundialEnVivo(env);
+      if (envivo.length > 0) {
+        const nombreDe = (id: string | null) => equipos.get(id ?? '')?.nombre ?? id ?? '';
+        for (const s of envivo) {
+          if (s.estado === 'SCHEDULED') continue;
+          const sKick = Date.parse(s.kickoffUtc);
+          const homeEs = traducirPais(s.homeNombre).toLowerCase();
+          const awayEs = traducirPais(s.awayNombre).toLowerCase();
+          // Emparejar por kickoff + (sigla O nombre traducido) de algún equipo.
+          const actual = actuales.find((p) => {
+            if (Date.parse(p.kickoff_utc) !== sKick) return false;
+            const a = (p.equipo_a ?? '').toUpperCase();
+            const b = (p.equipo_b ?? '').toUpperCase();
+            const porSigla = s.home3 === a || s.away3 === b || s.home3 === b || s.away3 === a;
+            const porNombre =
+              nombreDe(p.equipo_a).toLowerCase() === homeEs ||
+              nombreDe(p.equipo_b).toLowerCase() === awayEs;
+            return porSigla || porNombre;
+          });
+          if (!actual || actual.sellado) continue;
+          // En eliminatorias el final (extra/penales) lo confirma football-data;
+          // la fuente alterna solo da el marcador de los 90'. Por eso un FINISHED
+          // de eliminatoria se trata como EN JUEGO (provisional) hasta que la
+          // primaria lo selle. En grupos el 90' ES el final ⇒ sí puede finalizar.
+          let estado = s.estado;
+          if (estado === 'FINISHED' && actual.fase !== 'GRUPOS') estado = 'IN_PLAY';
+          const cambia =
+            actual.estado !== estado ||
+            actual.goles_a_90 !== s.golesA ||
+            actual.goles_b_90 !== s.golesB;
+          if (!cambia) continue;
+          await repo.actualizarPartido(actual.id, {
+            estado,
+            goles_a_90: s.golesA,
+            goles_b_90: s.golesB,
+            correccion_manual: false, // dato real de API en vivo
+          });
+          cambios++;
+          recalcular = true;
+        }
+      }
+    } catch {
+      // La fuente alterna nunca debe tumbar el poller; se ignora su fallo.
     }
 
     // 3) Recalcular puntos y tabla si hubo partidos en juego/finalizados.

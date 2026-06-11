@@ -249,6 +249,12 @@ export class SupabaseRepo implements PronosticoRepo {
     if (error) throw error;
   }
 
+  /** Actualización PARCIAL de un partido por id (no toca columnas no incluidas). */
+  async actualizarPartido(id: string, patch: Record<string, unknown>): Promise<void> {
+    const { error } = await this.db.from('partidos').update(patch).eq('id', id);
+    if (error) throw error;
+  }
+
   async upsertEquipos(
     equipos: { id: string; nombre: string; crestUrl: string | null }[],
   ): Promise<void> {
