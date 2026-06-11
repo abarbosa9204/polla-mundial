@@ -94,8 +94,19 @@ export async function runPoller(repo: SupabaseRepo, env: Env): Promise<PollResul
 
     // 2.5) Fuente ALTERNA en vivo (sportdb): rellena el marcador EN VIVO cuando
     // football-data va atrasado. Best-effort: jamás tumba el ciclo del poller.
+    // AHORRO: solo se consulta si HAY un partido en su ventana de juego (kickoff
+    // alcanzado, aún no finalizado/sellado, dentro de ~3.5 h). Fuera de partidos
+    // no se gasta ni una petición. Además solo ESCRIBE si el marcador cambió.
+    const ahoraMs = Date.now();
+    const VENTANA_PARTIDO_MS = 3.5 * 60 * 60 * 1000;
+    const hayPosibleEnVivo = actuales.some((p) => {
+      if (p.sellado || p.estado === 'FINISHED') return false;
+      if (p.estado === 'IN_PLAY' || p.estado === 'PAUSED') return true;
+      const ko = Date.parse(p.kickoff_utc);
+      return !Number.isNaN(ko) && ko <= ahoraMs && ahoraMs - ko < VENTANA_PARTIDO_MS;
+    });
     try {
-      const envivo = await fetchMundialEnVivo(env);
+      const envivo = hayPosibleEnVivo ? await fetchMundialEnVivo(env) : [];
       if (envivo.length > 0) {
         const nombreDe = (id: string | null) => equipos.get(id ?? '')?.nombre ?? id ?? '';
         for (const s of envivo) {
