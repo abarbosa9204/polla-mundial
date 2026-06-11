@@ -13,6 +13,7 @@
     "seed:smtp": "node scripts/seed-smtp.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
     "clean:demo": "node scripts/clean-demo.mjs",
+    "recordatorios": "node scripts/send-recordatorios.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -11,6 +11,7 @@ import { SupabaseRepo } from './repo.js';
 import { registerRoutes } from './routes.js';
 import { runPoller } from './poller/runPoller.js';
 import { debePollearAhora, type PartidoTiempo } from './scheduler.js';
+import { enviarRecordatorios } from './services/recordatoriosService.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -42,6 +43,26 @@ async function main(): Promise<void> {
       app.log.error({ err }, 'fallo en el ciclo del poller');
     }
   });
+
+  // --- Recordatorios diarios de información faltante (marcadores + bonos) ---
+  // Activo por defecto (REMINDER_ENABLED='false' lo apaga). Cada día, a la hora
+  // configurada, envía a cada usuario que no haya registrado lo que se le cierra
+  // dentro de la ventana. Si no hay SMTP configurado, es un NO-OP inofensivo.
+  if (env.REMINDER_ENABLED !== 'false') {
+    const hora = env.REMINDER_DAILY_HOUR_UTC;
+    cron.schedule(`0 ${hora} * * *`, async () => {
+      try {
+        const r = await enviarRecordatorios({
+          ventanaHoras: env.REMINDER_WINDOW_HOURS,
+          siteUrl: env.SITE_URL || undefined,
+        });
+        app.log.info({ recordatorios: r }, 'recordatorios enviados');
+      } catch (err) {
+        app.log.error({ err }, 'fallo enviando recordatorios');
+      }
+    });
+    app.log.info(`Recordatorios diarios activados a las ${hora}:00 UTC (ventana ${env.REMINDER_WINDOW_HOURS} h)`);
+  }
 
   app.log.info('Servidor central de la Polla Mundialista en marcha');
 }

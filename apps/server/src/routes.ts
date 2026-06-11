@@ -26,6 +26,7 @@ import {
   eliminarUsuario,
 } from './services/usuariosService.js';
 import { getBolsa, getPremiosConfig, setPremiosConfig } from './services/premiosService.js';
+import { enviarRecordatorios } from './services/recordatoriosService.js';
 
 async function requireUser(req: {
   headers: Record<string, unknown>;
@@ -207,6 +208,23 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdminOrTask(req))) return reply.code(403).send({ error: 'Prohibido' });
     const r = await recomputarTodo(repo);
     return reply.send({ ok: true, ...r });
+  });
+
+  // Recordatorios de marcadores faltantes (admin o cron externo con x-task-token).
+  // `?dryRun=1` calcula y devuelve a quién se enviaría SIN enviar nada.
+  app.post('/api/admin/recordatorios', async (req, reply) => {
+    if (!(await requireAdminOrTask(req))) return reply.code(403).send({ error: 'Prohibido' });
+    const dryRun = (req.query as { dryRun?: string })?.dryRun === '1';
+    try {
+      const r = await enviarRecordatorios({
+        ventanaHoras: env.REMINDER_WINDOW_HOURS,
+        dryRun,
+        siteUrl: origenDe(req),
+      });
+      return reply.send({ ok: true, ...r });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   app.post('/api/admin/partido/:id', async (req, reply) => {
