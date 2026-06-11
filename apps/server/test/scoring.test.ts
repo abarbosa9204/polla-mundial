@@ -141,13 +141,37 @@ describe('Tabla de posiciones: agregación, desempate y movimiento', () => {
         desglose: { marcadorExacto: false, resultado1X2: true } as never },
     ];
     // Antes: Beto 1º, Ana 2º. Ahora Ana sube a 1º.
-    const previas = new Map([['u1', 2], ['u2', 1]]);
+    const previas = new Map([
+      ['u1', { posicion: 2, movimiento: 0 }],
+      ['u2', { posicion: 1, movimiento: 0 }],
+    ]);
     const tabla = construirTablaPosiciones(usuarios, desgloses, previas);
     const ana = tabla.find((f) => f.userId === 'u1')!;
     const beto = tabla.find((f) => f.userId === 'u2')!;
     expect(ana.posicion).toBe(1);
     expect(ana.movimiento).toBe(1); // subió de 2 a 1
     expect(beto.movimiento).toBe(-1); // bajó de 1 a 2
+  });
+
+  it('el movimiento PERSISTE si la posición no cambió', () => {
+    const usuarios: UsuarioTabla[] = [
+      { userId: 'u1', displayName: 'Ana', timestampCampeon: 1, puntosBonos: 0 },
+      { userId: 'u2', displayName: 'Beto', timestampCampeon: 1, puntosBonos: 0 },
+    ];
+    const desgloses: DesgloseCalculado[] = [
+      { userId: 'u1', partidoId: 'M1', provisional: false, puntos: 10,
+        desglose: { marcadorExacto: false, resultado1X2: false } as never },
+      { userId: 'u2', partidoId: 'M1', provisional: false, puntos: 3,
+        desglose: { marcadorExacto: false, resultado1X2: true } as never },
+    ];
+    // Ana ya estaba 1ª con un ▲1 previo; sigue 1ª ⇒ debe MANTENER el ▲1 (no "–").
+    const previas = new Map([
+      ['u1', { posicion: 1, movimiento: 1 }],
+      ['u2', { posicion: 2, movimiento: -1 }],
+    ]);
+    const tabla = construirTablaPosiciones(usuarios, desgloses, previas);
+    expect(tabla.find((f) => f.userId === 'u1')!.movimiento).toBe(1); // persiste ▲1
+    expect(tabla.find((f) => f.userId === 'u2')!.movimiento).toBe(-1); // persiste ▼1
   });
 
   it('incluye bonos en los puntos confirmados', () => {

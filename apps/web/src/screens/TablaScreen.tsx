@@ -123,7 +123,8 @@ function FilaTabla({
           {f.puntos_provisionales > 0 && (
             <p className="text-[11px] text-amber-300/80">
               Los <b>parciales</b> pueden cambiar: incluyen partidos en juego y bonos en curso
-              (p. ej. <b>goleador</b> si el pick va de líder). Los bonos se confirman al terminar el Mundial.
+              (p. ej. <b>goleador</b> si el jugador que elegiste va de líder). Los bonos se confirman
+              al terminar el Mundial.
             </p>
           )}
           <MarcadoresUsuario userId={f.user_id} />

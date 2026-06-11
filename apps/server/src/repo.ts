@@ -198,14 +198,19 @@ export class SupabaseRepo implements PronosticoRepo {
     if (error) throw error;
   }
 
-  async getPosicionesPrevias(): Promise<Map<string, number>> {
+  async getPosicionesPrevias(): Promise<Map<string, { posicion: number; movimiento: number }>> {
     const { data, error } = await this.db
       .from('tabla_posiciones')
-      .select('user_id, posicion');
+      .select('user_id, posicion, movimiento');
     if (error) throw error;
-    const m = new Map<string, number>();
+    const m = new Map<string, { posicion: number; movimiento: number }>();
     for (const r of data ?? []) {
-      if (r.posicion != null) m.set(r.user_id as string, r.posicion as number);
+      if (r.posicion != null) {
+        m.set(r.user_id as string, {
+          posicion: r.posicion as number,
+          movimiento: (r.movimiento as number | null) ?? 0,
+        });
+      }
     }
     return m;
   }

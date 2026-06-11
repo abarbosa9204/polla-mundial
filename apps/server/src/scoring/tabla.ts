@@ -21,7 +21,7 @@ export interface FilaTablaResultado {
   resultados1x2: number;
   timestampCampeon: number | null;
   posicion: number;
-  /** +n sube, -n baja respecto a `posicionesAnteriores`; 0 si igual o sin dato. */
+  /** +n subió, -n bajó. PERSISTE el último cambio hasta que la posición cambie otra vez. */
   movimiento: number;
 }
 
@@ -35,7 +35,7 @@ interface Acumulado {
 export function construirTablaPosiciones(
   usuarios: readonly UsuarioTabla[],
   desgloses: readonly DesgloseCalculado[],
-  posicionesAnteriores?: ReadonlyMap<string, number>,
+  posicionesAnteriores?: ReadonlyMap<string, { posicion: number; movimiento: number }>,
 ): FilaTablaResultado[] {
   const acc = new Map<string, Acumulado>();
   for (const u of usuarios) acc.set(u.userId, { conf: 0, prov: 0, exactos: 0, x1x2: 0 });
@@ -83,10 +83,13 @@ export function construirTablaPosiciones(
   return ordenadas.map((o) => {
     const f = datos.get(o.userId)!;
     const prev = posicionesAnteriores?.get(o.userId);
-    return {
-      ...f,
-      posicion: o.posicion,
-      movimiento: prev != null ? prev - o.posicion : 0,
-    };
+    // El movimiento PERSISTE: si la posición no cambió respecto al último
+    // recálculo, se mantiene el último indicador mostrado (no se borra a "–").
+    // Solo se recalcula cuando la posición cambia de verdad.
+    let movimiento: number;
+    if (!prev) movimiento = 0;
+    else if (prev.posicion === o.posicion) movimiento = prev.movimiento;
+    else movimiento = prev.posicion - o.posicion;
+    return { ...f, posicion: o.posicion, movimiento };
   });
 }
