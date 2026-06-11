@@ -81,7 +81,13 @@ export async function sincronizarCola(): Promise<{ ok: number; error: number }> 
     } catch (err) {
       const code = err instanceof ApiError ? err.code : undefined;
       if (code === 'OFFLINE' || code === 'NETWORK') break; // sigue sin conexión: reintentar luego
-      marcarError(item.partidoId, err instanceof Error ? err.message : 'Error al sincronizar');
+      // El partido ya cerró ⇒ nunca se va a poder guardar: se descarta (no se
+      // deja colgado ni como "error" eterno; el cache se reconcilia con la BD).
+      if (code === 'LOCKED' || code === 'NOT_FOUND') {
+        quitar(item.partidoId);
+      } else {
+        marcarError(item.partidoId, err instanceof Error ? err.message : 'Error al sincronizar');
+      }
       error++;
     }
   }

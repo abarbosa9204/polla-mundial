@@ -36,7 +36,10 @@ export function App() {
     let activo = true;
     const sync = async () => {
       const r = await sincronizarCola();
-      if (activo && r.ok > 0) {
+      // Reconciliar con la BD tras CUALQUIER intento (éxito o error): si un ítem
+      // falló (p. ej. el partido cerró), refrescar quita de la caché cualquier
+      // valor optimista "fantasma" que no llegó a guardarse en la BD.
+      if (activo && (r.ok > 0 || r.error > 0)) {
         qc.invalidateQueries({ queryKey: ['misPronosticos'] });
         qc.invalidateQueries({ queryKey: ['misDesgloses'] });
         qc.invalidateQueries({ queryKey: ['tabla'] });

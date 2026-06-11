@@ -54,8 +54,9 @@ createRoot(document.getElementById('root')!).render(
         persistOptions={{
           persister,
           maxAge: 24 * 60 * 60 * 1000, // 24 h: descarta caché más vieja
-          // 'v2': invalida la caché previa, que pudo guardar un Map roto (ver abajo).
-          buster: 'v2',
+          // Subir el buster invalida la caché previa en TODOS los dispositivos.
+          // v2: Map roto; v3: pronósticos "fantasma" de guardados offline no confirmados.
+          buster: 'v3',
           dehydrateOptions: {
             // NO persistir consultas cuyo dato es un Map (`equipos`, `perfiles`):
             // los Map no sobreviven a JSON (se vuelven {}) y al rehidratar

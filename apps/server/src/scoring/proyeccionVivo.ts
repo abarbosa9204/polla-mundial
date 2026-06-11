@@ -1,7 +1,8 @@
 /**
- * Proyección EN VIVO de los clasificados por ronda, a partir de los resultados
- * REALES actuales (partidos FINISHED o en juego). Sirve para el bono de
- * clasificados PARCIAL (provisional): qué selecciones van clasificando ahora.
+ * Proyección de los clasificados por ronda, a partir de los partidos YA JUGADOS
+ * (FINISHED). NO cuenta partidos en juego (su resultado puede cambiar). Sirve
+ * para el bono de clasificados PARCIAL: qué selecciones van clasificando con lo
+ * ya disputado.
  *
  *  - R32 (16avos): top 2 de cada grupo + 8 mejores terceros (formato 2026),
  *    desde las tablas de grupo con los partidos ya jugados/en juego.
@@ -33,8 +34,11 @@ const RONDA_PREVIA: Record<Exclude<RondaClasificacion, 'R32'>, string> = {
   FINAL: 'SEMIS',
 };
 
-const contable = (estado: string): boolean =>
-  estado === 'FINISHED' || estado === 'IN_PLAY' || estado === 'PAUSED';
+// Solo partidos YA JUGADOS (FINISHED). Para los bonos de clasificación NO se
+// cuentan los partidos en juego: un resultado en vivo puede cambiar y eso
+// "inflaría"/haría oscilar la proyección. (El marcador en juego sí da puntos
+// parciales de PARTIDO, que es algo aparte y vive en los desgloses.)
+const contable = (estado: string): boolean => estado === 'FINISHED';
 
 interface FilaGrupo {
   id: string;
