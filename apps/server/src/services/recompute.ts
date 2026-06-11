@@ -6,13 +6,14 @@
  *
  * Reejecutarlo con los mismos datos produce siempre el mismo resultado.
  */
-import { calcularBonoGoleador, type ConfigPuntos } from '@polla/core';
+import type { ConfigPuntos } from '@polla/core';
 import type { Env } from '../env.js';
 import { fetchGoleadoresVivosIds } from '../poller/footballDataClient.js';
 import {
   computarDesglosesPartido,
   construirTablaPosiciones,
   computarBonosUsuario,
+  proyectarClasificadosVivo,
   type DesgloseCalculado,
   type UsuarioTabla,
   type PronosticoUsuario,
@@ -94,28 +95,32 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
   const clasificadosReales = mapaClasificados(resultados.clasificados);
   const picksPorUsuario = new Map(bonosPicks.map((b) => [b.userId, b]));
 
+  // Resultado EN VIVO (provisional) para los bonos parciales: clasificados
+  // proyectados desde los partidos actuales + goleador(es) líder(es). Campeón
+  // NO se proyecta (decisión de producto).
+  const clasificadosVivos = mapaClasificados(proyectarClasificadosVivo(partidos));
+  const resultadosVivos = {
+    clasificados: clasificadosVivos,
+    campeon: null,
+    goleadores: goleadoresVivos,
+  };
+
   const usuariosTabla: UsuarioTabla[] = usuarios.map((u) => {
     const pick = picksPorUsuario.get(u.userId);
+    const picksU = {
+      clasificados: pick ? recortarClasificados(pick.clasificados) : {},
+      campeon: pick?.campeon ?? null,
+      goleador: pick?.goleador ?? null,
+    };
+    // FIRMES: contra el resultado OFICIAL (admin). PARCIALES: contra el resultado
+    // EN VIVO menos lo ya firme (no duplicar). Al final, lo parcial pasa a firme.
     const bonos = computarBonosUsuario(
-      {
-        clasificados: pick ? recortarClasificados(pick.clasificados) : {},
-        campeon: pick?.campeon ?? null,
-        goleador: pick?.goleador ?? null,
-      },
-      {
-        clasificados: clasificadosReales,
-        campeon: resultados.campeon,
-        goleadores: resultados.goleadores,
-      },
+      picksU,
+      { clasificados: clasificadosReales, campeon: resultados.campeon, goleadores: resultados.goleadores },
       config,
     );
-    // Bono de goleador PARCIAL = (líder en vivo) − (oficial ya contado). Durante
-    // el torneo el oficial es 0 ⇒ muestra la proyección; al cargar el oficial al
-    // final, el parcial baja a 0 y pasa a firme. Sin doble conteo.
-    const valGol = config.bonos.goleador;
-    const golVivo = calcularBonoGoleador(pick?.goleador ?? null, goleadoresVivos, valGol).total;
-    const golOficial = calcularBonoGoleador(pick?.goleador ?? null, resultados.goleadores, valGol).total;
-    const puntosBonosParciales = Math.max(0, golVivo - golOficial);
+    const bonosVivos = computarBonosUsuario(picksU, resultadosVivos, config);
+    const puntosBonosParciales = Math.max(0, bonosVivos.total - bonos.total);
 
     return {
       userId: u.userId,

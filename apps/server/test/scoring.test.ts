@@ -12,9 +12,11 @@ import {
   computarDesglosesPartido,
   construirTablaPosiciones,
   computarBonosUsuario,
+  proyectarClasificadosVivo,
   type PartidoScoring,
   type UsuarioTabla,
   type DesgloseCalculado,
+  type PartidoProyeccion,
 } from '../src/scoring/index.js';
 
 const resFinal = (a: number, b: number): ResultadoOficial => ({
@@ -233,5 +235,35 @@ describe('Lote completo de un partido', () => {
     expect(ds).toHaveLength(2);
     expect(ds.find((d) => d.userId === 'u1')!.puntos).toBe(25); // exacto ×5 en final
     expect(ds.find((d) => d.userId === 'u2')!.puntos).toBe(0);
+  });
+});
+
+describe('Proyección de clasificados EN VIVO (bono parcial)', () => {
+  const P = (o: Partial<PartidoProyeccion>): PartidoProyeccion => ({
+    fase: 'GRUPOS', grupo: null, estado: 'FINISHED',
+    equipo_a: null, equipo_b: null, goles_a_90: null, goles_b_90: null, ganador_final: null, ...o,
+  });
+
+  it('R32: toma top-2 de cada grupo (cuenta partidos en juego)', () => {
+    const partidos = [
+      P({ grupo: 'A', equipo_a: 'MEX', equipo_b: 'RSA', estado: 'IN_PLAY', goles_a_90: 1, goles_b_90: 0 }),
+      P({ grupo: 'A', equipo_a: 'KOR', equipo_b: 'CZE', estado: 'FINISHED', goles_a_90: 2, goles_b_90: 2 }),
+    ];
+    const proy = proyectarClasificadosVivo(partidos);
+    // MEX gana (3 pts) → 1º; los demás empatados → entran KOR/CZE/RSA según desempate.
+    expect(proy.R32).toContain('MEX');
+    expect(proy.R32!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('R16: toma los ganadores de los partidos de R32 (incluye en juego)', () => {
+    const partidos = [
+      P({ fase: 'R32', estado: 'FINISHED', equipo_a: 'BRA', equipo_b: 'ARG', goles_a_90: 2, goles_b_90: 1 }),
+      P({ fase: 'R32', estado: 'IN_PLAY', equipo_a: 'ESP', equipo_b: 'ITA', goles_a_90: 0, goles_b_90: 1 }),
+      P({ fase: 'R32', estado: 'SCHEDULED', equipo_a: 'FRA', equipo_b: 'GER' }),
+    ];
+    const proy = proyectarClasificadosVivo(partidos);
+    expect(proy.R16).toEqual(expect.arrayContaining(['BRA', 'ITA']));
+    expect(proy.R16).not.toContain('FRA'); // aún no juega
+    expect(proy.R16).not.toContain('ESP'); // va perdiendo
   });
 });
