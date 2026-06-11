@@ -69,7 +69,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   let goleadoresCache: { ts: number; data: GoleadorFD[] } | null = null;
   app.get('/api/goleadores', async (_req, reply) => {
     const ahora = Date.now();
-    if (goleadoresCache && ahora - goleadoresCache.ts < 5 * 60_000) {
+    if (goleadoresCache && ahora - goleadoresCache.ts < 2 * 60_000) {
       return reply.send({ ok: true, goleadores: goleadoresCache.data, cacheado: true });
     }
     try {

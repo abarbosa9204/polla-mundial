@@ -5,6 +5,7 @@
  */
 import type { Env } from '../env.js';
 import type { FDMatch } from './footballDataNormalizer.js';
+import { traducirPais } from './traducciones.js';
 
 const BASE = 'https://api.football-data.org/v4';
 
@@ -50,7 +51,7 @@ export async function fetchGoleadoresFootballData(env: Env, limit = 30): Promise
   };
   return (data.scorers ?? []).map((s) => ({
     nombre: s.player?.name ?? '—',
-    equipo: s.team?.name ?? null,
+    equipo: s.team?.name ? traducirPais(s.team.name) : null,
     equipoCrest: s.team?.crest ?? null,
     goles: s.goals ?? 0,
     penales: s.penalties ?? null,
