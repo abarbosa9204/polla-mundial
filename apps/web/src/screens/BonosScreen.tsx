@@ -6,7 +6,22 @@ import { Header, Cargando } from './CalendarioScreen.js';
 import { SelectorBuscador, type OpcionSelector } from '../components/SelectorBuscador.js';
 import { proyectarClasificados } from '../lib/clasificacion.js';
 import { fmtFechaHoraLarga } from '../lib/fases.js';
+import { calcularCierresBonos, bonoEditable, type RondaClasif } from '../lib/bonosCierres.js';
 import { useOnline } from '../lib/hooks.js';
+
+/** Línea de cierre por sección: "Cierra: <fecha>" o "🔒 Cerrado". */
+function Cierre({ cierreMs, ahora }: { cierreMs: number | null; ahora: number }) {
+  if (cierreMs === null) {
+    return <p className="text-[11px] text-slate-500 mb-2">Cierre: cuando se defina el calendario.</p>;
+  }
+  const abierto = ahora < cierreMs;
+  const fecha = fmtFechaHoraLarga(new Date(cierreMs).toISOString());
+  return (
+    <p className={`text-[11px] mb-2 ${abierto ? 'text-slate-400' : 'text-red-400 font-semibold'}`}>
+      {abierto ? `Cierra: ${fecha} (Col)` : `🔒 Cerrado (${fecha})`}
+    </p>
+  );
+}
 
 function Bandera({ equipo }: { equipo?: EquipoView }) {
   if (!equipo) return null;
@@ -70,11 +85,10 @@ export function BonosScreen() {
     [jugadores.data, equipos.data],
   );
 
-  // Fecha máxima para registrar bonos = primer partido del Mundial.
-  const cierreBonos = useMemo(() => {
-    const ks = (partidos.data ?? []).map((p) => p.kickoff_utc).filter(Boolean).sort();
-    return ks[0] ?? null;
-  }, [partidos.data]);
+  // Cierres POR RONDA (espejo de bonosLock). `ahora` fija el estado al render.
+  const cierres = useMemo(() => calcularCierresBonos(partidos.data ?? []), [partidos.data]);
+  const ahora = Date.now();
+  const campeonEditable = bonoEditable(cierres.primerKickoffMs, ahora);
 
   // Proyección de clasificados a 16avos según los marcadores que el usuario pronosticó.
   const proy = useMemo(
@@ -132,9 +146,12 @@ export function BonosScreen() {
             Lo que dejes sin seleccionar, simplemente no suma.
           </p>
           <p className="text-sm rounded-lg bg-brand/10 ring-1 ring-brand/30 px-3 py-2 text-brand">
-            ⏰ Fecha límite para registrar tus bonos:{' '}
-            <b>{cierreBonos ? fmtFechaHoraLarga(cierreBonos) : 'el primer partido del Mundial'}</b> (hora de Colombia).
-            Después de esa hora no se podrán cambiar.
+            ⏰ Cada pronóstico cierra en su <b>propia fecha</b> (se indica en cada sección). El <b>campeón</b>,
+            el <b>goleador</b> y los <b>clasificados a 16avos</b> cierran con el primer partido
+            {cierres.primerKickoffMs ? (
+              <>: <b>{fmtFechaHoraLarga(new Date(cierres.primerKickoffMs).toISOString())}</b></>
+            ) : null}{' '}
+            (hora de Colombia). Las rondas siguientes cierran más adelante (cada una al iniciar su ronda previa).
           </p>
         </section>
 
@@ -167,8 +184,9 @@ export function BonosScreen() {
                 </div>
               )}
               <button
+                disabled={!bonoEditable(cierres.clasificados.R32, ahora)}
                 onClick={() => setClasificados((c) => ({ ...c, R32: proyR32 }))}
-                className="btn-ghost w-full text-xs"
+                className="btn-ghost w-full text-xs disabled:opacity-50"
               >
                 Usar esta proyección como mis clasificados a 16avos ({proyR32.length})
               </button>
@@ -179,26 +197,30 @@ export function BonosScreen() {
         {/* Campeón */}
         <section className="card p-4">
           <h2 className="font-semibold mb-1">🏆 Campeón del Mundial <span className="text-brand text-sm">+20</span></h2>
-          <p className="text-xs text-slate-400 mb-2">Elige 1 selección. Si no eliges, no ganas estos 20 puntos.</p>
+          <p className="text-xs text-slate-400 mb-1">Elige 1 selección. Si no eliges, no ganas estos 20 puntos.</p>
+          <Cierre cierreMs={cierres.primerKickoffMs} ahora={ahora} />
           <SelectorBuscador
             opciones={opcEquipos}
             value={campeon}
             onChange={setCampeon}
             placeholder="Buscar selección…"
             vacioLabel="— Elegir campeón —"
+            disabled={!campeonEditable}
           />
         </section>
 
         {/* Goleador */}
         <section className="card p-4">
           <h2 className="font-semibold mb-1">⚽ Goleador del Mundial <span className="text-brand text-sm">+15</span></h2>
-          <p className="text-xs text-slate-400 mb-2">Elige 1 jugador. Si no eliges, no ganas estos 15 puntos.</p>
+          <p className="text-xs text-slate-400 mb-1">Elige 1 jugador. Si no eliges, no ganas estos 15 puntos.</p>
+          <Cierre cierreMs={cierres.primerKickoffMs} ahora={ahora} />
           <SelectorBuscador
             opciones={opcJugadores}
             value={goleador}
             onChange={setGoleador}
             placeholder="Buscar jugador…"
             vacioLabel="— Elegir goleador —"
+            disabled={!campeonEditable}
           />
           {opcJugadores.length === 0 && (
             <p className="text-xs text-slate-500 mt-2">Lista de jugadores aún no cargada.</p>
@@ -209,6 +231,8 @@ export function BonosScreen() {
         {RONDAS.map((r) => {
           const sel = clasificados[r.key]?.length ?? 0;
           const completo = sel === r.cantidad;
+          const cierreMs = cierres.clasificados[r.key as RondaClasif];
+          const editable = bonoEditable(cierreMs, ahora);
           return (
           <section key={r.key} className="card p-4">
             <div className="flex items-center justify-between mb-1">
@@ -217,6 +241,7 @@ export function BonosScreen() {
                 {sel}/{r.cantidad}
               </span>
             </div>
+            <Cierre cierreMs={cierreMs} ahora={ahora} />
             <p className="text-[11px] text-slate-400 mb-2">
               Selecciona <b>{r.cantidad}</b> selecciones. Puedes marcar menos: solo ganas {r.pts} punto(s)
               por cada acierto; las que no marques no suman.
@@ -228,10 +253,11 @@ export function BonosScreen() {
                   <button
                     key={e.id}
                     title={e.nombre}
-                    onClick={() => toggleClasif(r.key, e.id)}
+                    disabled={!editable}
+                    onClick={() => editable && toggleClasif(r.key, e.id)}
                     className={`px-2 py-1 rounded-lg text-xs flex items-center gap-1 ${
                       sel ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'
-                    }`}
+                    } ${!editable ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {e.crest_url && <img src={e.crest_url} alt="" className="w-4 h-4 rounded-sm object-contain" />}
                     {e.id}

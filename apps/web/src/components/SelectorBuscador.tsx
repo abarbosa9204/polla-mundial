@@ -18,12 +18,14 @@ export function SelectorBuscador({
   onChange,
   placeholder = 'Buscar…',
   vacioLabel = '— Elegir —',
+  disabled = false,
 }: {
   opciones: OpcionSelector[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   vacioLabel?: string;
+  disabled?: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [q, setQ] = useState('');
@@ -63,8 +65,11 @@ export function SelectorBuscador({
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setAbierto((v) => !v)}
-        className="w-full rounded-xl bg-slate-800 px-3 py-2.5 ring-1 ring-white/10 flex items-center gap-2 text-left"
+        disabled={disabled}
+        onClick={() => !disabled && setAbierto((v) => !v)}
+        className={`w-full rounded-xl bg-slate-800 px-3 py-2.5 ring-1 ring-white/10 flex items-center gap-2 text-left ${
+          disabled ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
       >
         {sel ? (
           <>
