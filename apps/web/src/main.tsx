@@ -23,11 +23,26 @@ const queryClient = new QueryClient({
   },
 });
 
-// Persistimos la caché en localStorage para que al REABRIR la PWA se pinten los
-// últimos datos al instante (sin spinner) y luego se revaliden en segundo plano.
-// `buster` se sube si cambia el esquema de datos para invalidar lo guardado.
+// localStorage SEGURO: algunos navegadores in-app (WhatsApp/Instagram, modo
+// privado) lanzan excepción con solo TOCAR localStorage. Si no está disponible,
+// devolvemos undefined → la persistencia se desactiva (noop) y la app sigue
+// funcionando, en vez de crashear al arrancar.
+function storageSegura(): Storage | undefined {
+  try {
+    const k = '__polla_ls_test__';
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+// Persistimos la caché para que al REABRIR la PWA se pinten los últimos datos al
+// instante (sin spinner) y luego se revaliden en segundo plano. `buster` se sube
+// si cambia el esquema de datos para invalidar lo guardado.
 const persister = createSyncStoragePersister({
-  storage: window.localStorage,
+  storage: storageSegura(),
   key: 'polla:rq-cache:v1',
 });
 

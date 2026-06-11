@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 /**
  * Red de seguridad global: si algún componente lanza al renderizar (p. ej. un
@@ -10,6 +10,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
 
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo) {
+    // Deja el error en consola para diagnosticar (útil al depurar en remoto).
+    console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
   override render() {
@@ -30,6 +35,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
           >
             Reintentar
           </button>
+          {/* Detalle técnico (pequeño) para poder reportar la causa real. */}
+          <details className="mt-4 text-left">
+            <summary className="text-[11px] text-slate-500 cursor-pointer">Ver detalle técnico</summary>
+            <pre className="mt-1 text-[10px] text-slate-500 whitespace-pre-wrap break-words">
+              {this.state.error.message}
+            </pre>
+          </details>
         </div>
       </div>
     );
