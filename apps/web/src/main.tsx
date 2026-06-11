@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { AuthProvider } from './auth/AuthProvider.js';
@@ -54,7 +54,18 @@ createRoot(document.getElementById('root')!).render(
         persistOptions={{
           persister,
           maxAge: 24 * 60 * 60 * 1000, // 24 h: descarta caché más vieja
-          buster: 'v1',
+          // 'v2': invalida la caché previa, que pudo guardar un Map roto (ver abajo).
+          buster: 'v2',
+          dehydrateOptions: {
+            // NO persistir consultas cuyo dato es un Map (`equipos`, `perfiles`):
+            // los Map no sobreviven a JSON (se vuelven {}) y al rehidratar
+            // `data.get(...)` deja de ser función → crash. Se refrescan al cargar.
+            shouldDehydrateQuery: (query) => {
+              const key = query.queryKey?.[0];
+              if (key === 'equipos' || key === 'perfiles') return false;
+              return defaultShouldDehydrateQuery(query);
+            },
+          },
         }}
       >
         <AuthProvider>
