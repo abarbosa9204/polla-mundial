@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 
 export type Rol = 'user' | 'admin' | 'super_admin';
@@ -28,6 +29,7 @@ interface AuthState {
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Rol | null>(null);
   const [estado, setEstado] = useState<EstadoUsuario | null>(null);
@@ -118,6 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async signOut() {
       await supabase.auth.signOut();
       setRecuperando(false);
+      // Vaciar la caché (memoria + persistida) para no dejar datos del usuario
+      // anterior visibles si en este dispositivo entra otra persona.
+      qc.clear();
+      try {
+        localStorage.removeItem('polla:rq-cache:v1');
+      } catch {
+        /* almacenamiento no disponible: se ignora */
+      }
     },
   };
 

@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider.js';
 import {
@@ -332,6 +332,29 @@ const ESTADO_LABEL: Record<string, string> = {
   rechazado: 'inactivo',
 };
 
+/**
+ * Aviso de carga del listado de usuarios. Si tarda más de ~4 s, explica que el
+ * servidor (plan gratuito) estaba inactivo y se está despertando, para que el
+ * admin no piense que la app se colgó.
+ */
+function AvisoCargaLenta() {
+  const [lento, setLento] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLento(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-slate-400">Cargando usuarios…</p>
+      {lento && (
+        <p className="text-[11px] text-slate-500">
+          El servidor estaba inactivo y se está despertando; la primera carga puede tardar unos segundos.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
   const qc = useQueryClient();
   const usuarios = useQuery({
@@ -379,7 +402,12 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Gestión de usuarios</h2>
-        <button onClick={refrescar} className="text-xs text-brand">↻ Refrescar</button>
+        <div className="flex items-center gap-3">
+          {usuarios.isFetching && !usuarios.isLoading && (
+            <span className="text-[11px] text-slate-400">Actualizando…</span>
+          )}
+          <button onClick={refrescar} className="text-xs text-brand">↻ Refrescar</button>
+        </div>
       </div>
 
       {/* Crear usuario por invitación (colapsable) */}
@@ -396,7 +424,7 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
       {/* Buscador */}
       <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre o correo…" className="w-full rounded-lg bg-slate-800 px-3 py-2 ring-1 ring-white/10 text-sm" />
 
-      {usuarios.isLoading && <p className="text-sm text-slate-400">Cargando usuarios…</p>}
+      {usuarios.isLoading && <AvisoCargaLenta />}
       {usuarios.isError && <p className="text-sm text-red-400">No se pudo cargar (revisa tu conexión y reintenta).</p>}
 
       {/* Tabla */}

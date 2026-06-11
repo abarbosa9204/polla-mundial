@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { esEliminatoria, calcularPuntos, MARGEN_CIERRE_MS } from '@polla/core';
-import type { ConfigPuntos, Fase, DesglosePartido } from '@polla/core';
+import type { ConfigPuntos, Fase, DesglosePartido, PronosticoPartidoInput } from '@polla/core';
+import type { PronosticoRow } from '@polla/data';
 import { describirDesglose } from '../lib/desglose.js';
 import { fetchPartidos, fetchEquipos, fetchMisPronosticos, fetchConfigPuntos, fetchMisDesgloses } from '../lib/queries.js';
 import { guardarPronostico, ApiError } from '../lib/api.js';
 import { encolar } from '../lib/colaPronosticos.js';
+import { useAuth } from '../auth/AuthProvider.js';
 import { TeamBadge } from '../components/TeamBadge.js';
 import { Header, Cargando, RelojColombia } from './CalendarioScreen.js';
 import { NOMBRE_FASE, MULTIPLICADOR_FASE, fmtFechaHora, fmtFechaHoraLarga } from '../lib/fases.js';
@@ -16,6 +18,8 @@ export function PronosticoScreen() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const online = useOnline();
+  const qc = useQueryClient();
+  const { userId } = useAuth();
 
   const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
   const partidos = useQuery({ queryKey: ['partidos'], queryFn: fetchPartidos });
@@ -113,7 +117,15 @@ export function PronosticoScreen() {
     }
     const payload = { marcador90: { golesA, golesB }, ...elimFields };
 
+    // --- Actualización OPTIMISTA: la tarjeta "Tu pronóstico" cambia al instante.
+    // Guardamos una foto del estado previo para revertir si el servidor rechaza.
+    const previo = qc.getQueryData<PronosticoRow[]>(['misPronosticos']);
+    qc.setQueryData<PronosticoRow[]>(['misPronosticos'], (old) =>
+      aplicarOptimista(old ?? [], id, payload, mio, userId),
+    );
+
     // Sin conexión: se guarda en la cola local con su hora y se sincroniza luego.
+    // (La fila optimista queda visible; la cola la confirmará al volver internet.)
     if (!navigator.onLine) {
       encolar(id, payload);
       setMsg({ tipo: 'ok', texto: 'Guardado sin conexión ✓ Se registrará solo cuando vuelva internet.' });
@@ -124,12 +136,16 @@ export function PronosticoScreen() {
     try {
       const r = await guardarPronostico(id, payload);
       setMsg({ tipo: 'ok', texto: `Guardado ✓ (registrado ${fmtFechaHoraLarga(r.registradoEn)})` });
+      // Reconciliar con el servidor (id/versión/hora reales).
       mios.refetch();
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'OFFLINE' || err.code === 'NETWORK')) {
+        // Se cayó la red en pleno envío: encolar y conservar la fila optimista.
         encolar(id, payload);
         setMsg({ tipo: 'ok', texto: 'Sin conexión: guardado localmente, se sincronizará automáticamente.' });
       } else {
+        // Rechazo real (p. ej. partido cerrado): revertir al estado previo.
+        qc.setQueryData<PronosticoRow[]>(['misPronosticos'], previo ?? []);
         const texto =
           err instanceof ApiError
             ? err.code === 'LOCKED'
@@ -460,6 +476,38 @@ function PuntosPosibles({
       </p>
     </div>
   );
+}
+
+/**
+ * Construye la fila optimista del pronóstico recién enviado y la mezcla en el
+ * arreglo de `misPronosticos` (reemplaza la del mismo partido o la agrega). Los
+ * campos id/versión/hora son provisionales: el `refetch` posterior los corrige
+ * con los reales del servidor. Sirve solo para que la UI responda al instante.
+ */
+function aplicarOptimista(
+  old: PronosticoRow[],
+  partidoId: string,
+  payload: PronosticoPartidoInput,
+  mio: PronosticoRow | undefined,
+  userId: string | null,
+): PronosticoRow[] {
+  const ahora = new Date().toISOString();
+  const extra = payload.marcadorExtra ?? null;
+  const fila: PronosticoRow = {
+    id: mio?.id ?? `optimista:${partidoId}`,
+    user_id: mio?.user_id ?? userId ?? '',
+    partido_id: partidoId,
+    marcador_a_90: payload.marcador90.golesA,
+    marcador_b_90: payload.marcador90.golesB,
+    habra_extra: payload.habraExtra ?? null,
+    extra_a: extra ? extra.golesA : null,
+    extra_b: extra ? extra.golesB : null,
+    ganador_final: payload.ganadorFinal ?? null,
+    created_at_server: mio?.created_at_server ?? ahora,
+    updated_at_server: ahora,
+    version: (mio?.version ?? 0) + 1,
+  };
+  return [...old.filter((p) => p.partido_id !== partidoId), fila];
 }
 
 function Razon({ texto, detalle, activo = true }: { texto: string; detalle: string; activo?: boolean }) {
