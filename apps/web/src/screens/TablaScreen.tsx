@@ -130,7 +130,18 @@ function FilaTabla({
 
 /** Desglose claro de los puntos PARCIALES: en juego (partidos) + bonos por ronda. */
 function DesglosePartial({ f }: { f: TablaPosicionRow }) {
-  const bonos = f.bonos_parciales ?? {};
+  const bonos = f.bonos_parciales;
+  // `bonos_parciales` puede no existir todavía (columna sin migrar). En ese caso
+  // NO inventamos el desglose (no decir "en juego" si en realidad son bonos):
+  // mostramos el total parcial con una nota genérica.
+  if (!bonos) {
+    return (
+      <p className="text-[11px] text-amber-300/80">
+        <b>+{f.puntos_provisionales} parciales</b> (en juego y/o bonos en curso). Pueden cambiar; se
+        confirman al avanzar/terminar el Mundial.
+      </p>
+    );
+  }
   const sumaBonos = Object.values(bonos).reduce((s, v) => s + (v || 0), 0);
   const enJuego = f.puntos_provisionales - sumaBonos;
   const lineasBonos = Object.entries(bonos).filter(([, v]) => v > 0);
@@ -141,6 +152,7 @@ function DesglosePartial({ f }: { f: TablaPosicionRow }) {
       {lineasBonos.map(([k, v]) => (
         <div key={k}>• {k === 'Goleador' ? 'Goleador' : `Clasificados a ${k}`}: <b>+{v}</b></div>
       ))}
+      {enJuego <= 0 && lineasBonos.length === 0 && <div>• Sin desglose disponible aún.</div>}
       <div className="text-slate-500 pt-0.5">
         Los marcadores en juego y los bonos parciales se confirman al avanzar/terminar el Mundial.
       </div>

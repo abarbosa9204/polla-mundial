@@ -53,8 +53,19 @@ export async function fetchEquipos(): Promise<Map<string, EquipoView>> {
   return m;
 }
 
+/** ID del usuario en sesión (de la sesión local, sin pedir a la red). */
+async function miUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
+}
+
 export async function fetchMisPronosticos(): Promise<PronosticoRow[]> {
-  const { data, error } = await supabase.from('pronosticos').select('*');
+  // FILTRO EXPLÍCITO por user_id: para admin/super_admin la RLS deja leer TODOS
+  // los pronósticos, así que sin este filtro "mis" devolvería los de todos
+  // (y el card mostraría el de otro usuario). Siempre solo los míos.
+  const uid = await miUserId();
+  if (!uid) return [];
+  const { data, error } = await supabase.from('pronosticos').select('*').eq('user_id', uid);
   if (error) throw error;
   return (data ?? []) as PronosticoRow[];
 }
@@ -104,7 +115,9 @@ export async function fetchPerfiles(): Promise<Map<string, string>> {
 }
 
 export async function fetchMisDesgloses(): Promise<DesgloseRow[]> {
-  const { data, error } = await supabase.from('desgloses').select('*');
+  const uid = await miUserId();
+  if (!uid) return [];
+  const { data, error } = await supabase.from('desgloses').select('*').eq('user_id', uid);
   if (error) throw error;
   return (data ?? []) as DesgloseRow[];
 }
@@ -160,9 +173,12 @@ export async function fetchMisBonos(): Promise<{
   goleador_jugador: string | null;
   clasificados: Record<string, string[]>;
 } | null> {
+  const uid = await miUserId();
+  if (!uid) return null;
   const { data, error } = await supabase
     .from('bonos_usuario')
     .select('campeon_equipo, goleador_jugador, clasificados')
+    .eq('user_id', uid)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
