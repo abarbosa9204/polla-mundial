@@ -35,6 +35,7 @@ import {
 import { Header, Cargando } from './CalendarioScreen.js';
 import { NOMBRE_FASE, fmtFechaHora, fmtFechaHoraLarga } from '../lib/fases.js';
 import { SelectorBuscador, type OpcionSelector } from '../components/SelectorBuscador.js';
+import { CLASIFICADOS_POR_RONDA } from '@polla/core';
 
 export function AdminScreen() {
   const { role, esAdmin, esSuperAdmin } = useAuth();
@@ -510,11 +511,11 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
 }
 
 const RONDAS_BONO = [
-  { key: 'R32', label: 'Clasificados a 16avos', cantidad: 32 },
-  { key: 'R16', label: 'Clasificados a octavos', cantidad: 16 },
-  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: 8 },
-  { key: 'SEMIS', label: 'Clasificados a semis', cantidad: 4 },
-  { key: 'FINAL', label: 'Clasificados a la final', cantidad: 2 },
+  { key: 'R32', label: 'Clasificados a 16avos', cantidad: CLASIFICADOS_POR_RONDA.R32 },
+  { key: 'R16', label: 'Clasificados a octavos', cantidad: CLASIFICADOS_POR_RONDA.R16 },
+  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: CLASIFICADOS_POR_RONDA.CUARTOS },
+  { key: 'SEMIS', label: 'Clasificados a semis', cantidad: CLASIFICADOS_POR_RONDA.SEMIS },
+  { key: 'FINAL', label: 'Clasificados a la final', cantidad: CLASIFICADOS_POR_RONDA.FINAL },
 ] as const;
 
 /**
@@ -567,6 +568,14 @@ function EditorBonosUsuario({
   );
 
   function toggle(ronda: string, id: string) {
+    const max = CLASIFICADOS_POR_RONDA[ronda as keyof typeof CLASIFICADOS_POR_RONDA];
+    const actual = clasificados[ronda] ?? [];
+    // Tope por ronda (regla 6.4): no permitir marcar más de las que avanzan.
+    if (!actual.includes(id) && max != null && actual.length >= max) {
+      setErr(`Máximo ${max} en esta ronda. Quita una para cambiar.`);
+      return;
+    }
+    setErr(null);
     setClasificados((prev) => {
       const a = prev[ronda] ?? [];
       return { ...prev, [ronda]: a.includes(id) ? a.filter((x) => x !== id) : [...a, id] };
@@ -603,20 +612,24 @@ function EditorBonosUsuario({
       </div>
       {RONDAS_BONO.map((r) => {
         const sel = clasificados[r.key] ?? [];
+        const completo = sel.length >= r.cantidad;
         return (
           <div key={r.key}>
             <p className="text-[11px] text-slate-400 mb-1">
-              {r.label} <span className="text-slate-500">({sel.length}/{r.cantidad})</span>
+              {r.label} <span className={completo ? 'text-emerald-400' : 'text-slate-500'}>({sel.length}/{r.cantidad})</span>
             </p>
             <div className="flex flex-wrap gap-1">
               {equiposArr.map((e) => {
                 const on = sel.includes(e.id);
+                // Al llegar al tope, los NO marcados se bloquean; los marcados siguen activos.
+                const bloqueado = !on && completo;
                 return (
                   <button
                     key={e.id}
                     title={e.nombre}
-                    onClick={() => toggle(r.key, e.id)}
-                    className={`px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 ${on ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'}`}
+                    disabled={bloqueado}
+                    onClick={() => !bloqueado && toggle(r.key, e.id)}
+                    className={`px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 ${on ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'} ${bloqueado ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {e.crest_url && <img src={e.crest_url} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />}
                     {e.id}
