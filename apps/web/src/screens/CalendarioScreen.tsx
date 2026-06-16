@@ -22,6 +22,15 @@ function leerVista(): Vista {
   }
 }
 
+/** Fecha (YYYY-MM-DD) de un kickoff en hora de Colombia, para filtrar por día. */
+function fechaBogotaISO(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ_POLLA });
+}
+/** Hoy (YYYY-MM-DD) en hora de Colombia. */
+function hoyBogotaISO(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: TZ_POLLA });
+}
+
 export function CalendarioScreen() {
   const qc = useQueryClient();
   const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
@@ -32,6 +41,7 @@ export function CalendarioScreen() {
   const [vista, setVista] = useState<Vista>(leerVista);
   const [grupo, setGrupo] = useState('');
   const [equipo, setEquipo] = useState('');
+  const [fecha, setFecha] = useState(''); // 'YYYY-MM-DD' (hora Colombia); '' = todas
 
   // Guarda la preferencia de vista (se respeta al volver a entrar).
   useEffect(() => {
@@ -84,18 +94,21 @@ export function CalendarioScreen() {
       lista.filter(
         (p) =>
           (!grupo || p.grupo === grupo) &&
-          (!equipo || p.equipo_a === equipo || p.equipo_b === equipo),
+          (!equipo || p.equipo_a === equipo || p.equipo_b === equipo) &&
+          (!fecha || fechaBogotaISO(p.kickoff_utc) === fecha),
       ),
-    [lista, grupo, equipo],
+    [lista, grupo, equipo, fecha],
   );
 
   if (partidos.isLoading) return <Cargando />;
   if (partidos.error) return <ErrorMsg />;
 
-  const hayFiltro = !!grupo || !!equipo;
+  const hoy = hoyBogotaISO();
+  const hayFiltro = !!grupo || !!equipo || !!fecha;
   const limpiar = () => {
     setGrupo('');
     setEquipo('');
+    setFecha('');
   };
   const seg = (activo: boolean) =>
     `px-2.5 py-1 rounded-md transition ${activo ? 'bg-brand text-white' : 'text-slate-300'}`;
@@ -126,6 +139,19 @@ export function CalendarioScreen() {
           placeholder="Buscar equipo…"
           vacioLabel="Todos los equipos"
         />
+
+        {/* Filtro por fecha (hora Colombia): Todas · Hoy · día específico */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <Pill activo={fecha === ''} onClick={() => setFecha('')}>Todas</Pill>
+          <Pill activo={fecha === hoy} onClick={() => setFecha(hoy)}>Hoy</Pill>
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="shrink-0 rounded-full bg-slate-800 text-slate-300 text-xs ring-1 ring-white/10 px-2.5 py-1"
+            aria-label="Filtrar por fecha"
+          />
+        </div>
 
         {grupos.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
