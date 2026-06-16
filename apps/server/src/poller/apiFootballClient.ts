@@ -7,6 +7,7 @@ import type { Env } from '../env.js';
 import type { Fase } from '@polla/core';
 import type { PartidoNormalizado } from './model.js';
 import { mapStage } from './stages.js';
+import { codigoEquipo } from './codigosEquipos.js';
 
 const BASE = 'https://v3.football.api-sports.io';
 
@@ -97,8 +98,10 @@ function normalizar(f: AFFixture): PartidoNormalizado | null {
     fase: fase.fase,
     grupo: null,
     rondaOrden: fase.rondaOrden,
-    equipoA: { id: f.teams.home.name.slice(0, 3).toUpperCase(), nombre: f.teams.home.name, crestUrl: null },
-    equipoB: { id: f.teams.away.name.slice(0, 3).toUpperCase(), nombre: f.teams.away.name, crestUrl: null },
+    // Código CANÓNICO desde el nombre (API-Football no trae TLA). Evita generar
+    // duplicados/basura por las 3 primeras letras del nombre (ver codigosEquipos.ts).
+    equipoA: { id: codigoEquipo({ nombre: f.teams.home.name }) ?? f.teams.home.name.slice(0, 3).toUpperCase(), nombre: f.teams.home.name, crestUrl: null },
+    equipoB: { id: codigoEquipo({ nombre: f.teams.away.name }) ?? f.teams.away.name.slice(0, 3).toUpperCase(), nombre: f.teams.away.name, crestUrl: null },
     kickoffUtc: new Date(f.fixture.date).toISOString(),
     estado: STATUS_AF[f.fixture.status.short] ?? 'SCHEDULED',
     golesA90,

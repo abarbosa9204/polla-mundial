@@ -11,6 +11,7 @@ import { normalizarFootballData } from './footballDataNormalizer.js';
 import { fetchPartidosApiFootball } from './apiFootballClient.js';
 import { fetchMundialEnVivo } from './sportdbClient.js';
 import { traducirPais } from './traducciones.js';
+import { canonicalTla } from './codigosEquipos.js';
 import { necesitaActualizar, requiereRecalculo } from './diff.js';
 import type { PartidoNormalizado } from './model.js';
 import { recomputarTodo } from '../services/recompute.js';
@@ -114,12 +115,16 @@ export async function runPoller(repo: SupabaseRepo, env: Env): Promise<PollResul
           const sKick = Date.parse(s.kickoffUtc);
           const homeEs = traducirPais(s.homeNombre).toLowerCase();
           const awayEs = traducirPais(s.awayNombre).toLowerCase();
+          // Siglas de la fuente alterna canonicalizadas para que casen con los
+          // códigos canónicos almacenados (p.ej. CUR→CUW, URU→URY).
+          const sHome = canonicalTla(s.home3);
+          const sAway = canonicalTla(s.away3);
           // Emparejar por kickoff + (sigla O nombre traducido) de algún equipo.
           const actual = actuales.find((p) => {
             if (Date.parse(p.kickoff_utc) !== sKick) return false;
             const a = (p.equipo_a ?? '').toUpperCase();
             const b = (p.equipo_b ?? '').toUpperCase();
-            const porSigla = s.home3 === a || s.away3 === b || s.home3 === b || s.away3 === a;
+            const porSigla = sHome === a || sAway === b || sHome === b || sAway === a;
             const porNombre =
               nombreDe(p.equipo_a).toLowerCase() === homeEs ||
               nombreDe(p.equipo_b).toLowerCase() === awayEs;

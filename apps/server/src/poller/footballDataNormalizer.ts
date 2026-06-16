@@ -17,6 +17,7 @@ import type { LadoEquipo } from '@polla/core';
 import type { PartidoNormalizado, EquipoNormalizado } from './model.js';
 import { mapStage, mapStatus, mapGrupo } from './stages.js';
 import { traducirPais } from './traducciones.js';
+import { codigoEquipo } from './codigosEquipos.js';
 
 // --- Tipos laxos del payload de football-data (solo lo que leemos) ---
 interface FDScorePair {
@@ -52,8 +53,13 @@ export interface FDMatch {
 
 function equipo(t: FDTeam | null | undefined): EquipoNormalizado | null {
   if (!t) return null;
-  // Preferimos el TLA (código de 3 letras) como id estable; si falta, el id num.
-  const id = (t.tla ?? (t.id != null ? String(t.id) : null))?.toUpperCase() ?? null;
+  // Código CANÓNICO: TLA → nombre conocido → id numérico. Evita duplicados por
+  // cambios de TLA de la API (ver codigosEquipos.ts).
+  const id = codigoEquipo({
+    tla: t.tla,
+    nombre: t.name ?? t.shortName ?? null,
+    fallbackId: t.id != null ? String(t.id) : null,
+  });
   if (!id) return null;
   return {
     id,

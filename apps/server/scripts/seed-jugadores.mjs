@@ -32,9 +32,18 @@ if (!URL || !KEY || !TOKEN) {
 
 const db = createClient(URL, KEY, { auth: { persistSession: false } });
 
+// Alias de TLA → código canónico (espejo de src/poller/codigosEquipos.ts:ALIAS_TLA).
+// football-data cambia el TLA de algunas selecciones; lo consolidamos aquí también
+// para que los jugadores queden enlazados al MISMO id de equipo que usa el poller.
+const ALIAS_TLA = { CUR: 'CUW', URU: 'URY' };
+function canonicalTla(raw) {
+  const up = String(raw).trim().toUpperCase();
+  return ALIAS_TLA[up] ?? up;
+}
+
 function equipoId(t) {
   const id = t.tla ?? (t.id != null ? String(t.id) : null);
-  return id ? id.toUpperCase() : null;
+  return id ? canonicalTla(id) : null;
 }
 
 async function main() {
