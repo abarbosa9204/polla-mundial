@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useMemo, useState, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider.js';
 import {
@@ -20,6 +20,8 @@ import {
   adminEstadoUsuario,
   adminEditarUsuario,
   adminEliminarUsuario,
+  adminGetBonosUsuario,
+  adminSetBonosUsuario,
   adminGetSmtp,
   adminSetSmtp,
   adminTestSmtp,
@@ -363,6 +365,7 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
   });
   const [busy, setBusy] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
+  const [bonosDe, setBonosDe] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [nuevoEmail, setNuevoEmail] = useState('');
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -468,6 +471,9 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
                       <button disabled={busy} onClick={() => accion(() => adminEditarUsuario(u.id, { pagado: !u.pagado }), u.pagado ? 'Pago retirado' : 'Pago confirmado ✓')} className={`${btn} ${u.pagado ? 'text-slate-300' : 'text-emerald-300'}`}>{u.pagado ? 'Quitar pago' : 'Marcar pagado'}</button>
                       <button disabled={busy} onClick={() => setEditando(editando === u.id ? null : u.id)} className={btn}>Editar</button>
                       {u.role !== 'super_admin' && (
+                        <button disabled={busy} onClick={() => setBonosDe(bonosDe === u.id ? null : u.id)} className={`${btn} text-brand`}>Bonos</button>
+                      )}
+                      {u.role !== 'super_admin' && (
                         <button disabled={busy} onClick={() => { if (confirm(`¿Eliminar a ${u.display_name}? Se borran sus pronósticos y puntos.`)) accion(() => adminEliminarUsuario(u.id), 'Usuario eliminado'); }} className={`${btn} text-red-400`}>Eliminar</button>
                       )}
                     </div>
@@ -480,6 +486,17 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
                     </td>
                   </tr>
                 )}
+                {bonosDe === u.id && (
+                  <tr className="border-b border-white/5">
+                    <td colSpan={4} className="py-2">
+                      <EditorBonosUsuario
+                        usuario={u}
+                        onCerrar={() => setBonosDe(null)}
+                        onGuardado={() => { onDone(`Bonos de ${u.display_name} actualizados ✓`); setBonosDe(null); refrescar(); }}
+                      />
+                    </td>
+                  </tr>
+                )}
               </Fragment>
             ))}
             {lista.length === 0 && !usuarios.isLoading && (
@@ -489,6 +506,135 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
         </table>
       </div>
     </section>
+  );
+}
+
+const RONDAS_BONO = [
+  { key: 'R32', label: 'Clasificados a 16avos', cantidad: 32 },
+  { key: 'R16', label: 'Clasificados a octavos', cantidad: 16 },
+  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: 8 },
+  { key: 'SEMIS', label: 'Clasificados a semis', cantidad: 4 },
+  { key: 'FINAL', label: 'Clasificados a la final', cantidad: 2 },
+] as const;
+
+/**
+ * Editor de bonos de UN usuario (solo super_admin). Corrige saltándose el cierre
+ * (caso especial). Reusa los selectores de la pantalla de bonos.
+ */
+function EditorBonosUsuario({
+  usuario,
+  onCerrar,
+  onGuardado,
+}: {
+  usuario: UsuarioAdmin;
+  onCerrar: () => void;
+  onGuardado: () => void;
+}) {
+  const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
+  const jugadores = useQuery({ queryKey: ['jugadores'], queryFn: fetchJugadores });
+  const bonos = useQuery({ queryKey: ['admin-bonos', usuario.id], queryFn: () => adminGetBonosUsuario(usuario.id) });
+  const [campeon, setCampeon] = useState('');
+  const [goleador, setGoleador] = useState('');
+  const [clasificados, setClasificados] = useState<Record<string, string[]>>({});
+  const [guardando, setGuardando] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (bonos.data) {
+      setCampeon(bonos.data.campeon ?? '');
+      setGoleador(bonos.data.goleador ?? '');
+      setClasificados(bonos.data.clasificados ?? {});
+    }
+  }, [bonos.data]);
+
+  const equiposArr = useMemo(
+    () => [...(equipos.data?.values() ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [equipos.data],
+  );
+  const opcEquipos = useMemo<OpcionSelector[]>(
+    () => equiposArr.map((e) => ({ value: e.id, label: e.nombre, badge: e.id, img: e.crest_url })),
+    [equiposArr],
+  );
+  const opcJugadores = useMemo<OpcionSelector[]>(
+    () =>
+      (jugadores.data ?? []).map((j) => ({
+        value: j.id,
+        label: j.nombre,
+        sub: j.equipo_id ? equipos.data?.get(j.equipo_id)?.nombre ?? undefined : undefined,
+        img: j.foto_url ?? (j.equipo_id ? equipos.data?.get(j.equipo_id)?.crest_url ?? null : null),
+      })),
+    [jugadores.data, equipos.data],
+  );
+
+  function toggle(ronda: string, id: string) {
+    setClasificados((prev) => {
+      const a = prev[ronda] ?? [];
+      return { ...prev, [ronda]: a.includes(id) ? a.filter((x) => x !== id) : [...a, id] };
+    });
+  }
+
+  async function guardar() {
+    setGuardando(true);
+    setErr(null);
+    try {
+      await adminSetBonosUsuario(usuario.id, { campeon: campeon || null, goleador: goleador || null, clasificados });
+      onGuardado();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'No se pudo guardar.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (bonos.isLoading) return <p className="text-xs text-slate-400">Cargando bonos del usuario…</p>;
+
+  return (
+    <div className="rounded-xl bg-slate-800/60 p-3 space-y-3">
+      <p className="text-xs text-amber-300">
+        Editando bonos de <b>{usuario.display_name}</b> — se aplica <b>saltándose el cierre</b> (caso especial).
+      </p>
+      <div>
+        <p className="text-[11px] text-slate-400 mb-1">🏆 Campeón</p>
+        <SelectorBuscador opciones={opcEquipos} value={campeon} onChange={setCampeon} placeholder="Buscar selección…" vacioLabel="— Sin campeón —" />
+      </div>
+      <div>
+        <p className="text-[11px] text-slate-400 mb-1">⚽ Goleador</p>
+        <SelectorBuscador opciones={opcJugadores} value={goleador} onChange={setGoleador} placeholder="Buscar jugador…" vacioLabel="— Sin goleador —" />
+      </div>
+      {RONDAS_BONO.map((r) => {
+        const sel = clasificados[r.key] ?? [];
+        return (
+          <div key={r.key}>
+            <p className="text-[11px] text-slate-400 mb-1">
+              {r.label} <span className="text-slate-500">({sel.length}/{r.cantidad})</span>
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {equiposArr.map((e) => {
+                const on = sel.includes(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    title={e.nombre}
+                    onClick={() => toggle(r.key, e.id)}
+                    className={`px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 ${on ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'}`}
+                  >
+                    {e.crest_url && <img src={e.crest_url} alt="" className="w-3.5 h-3.5 rounded-sm object-contain" />}
+                    {e.id}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {err && <p className="text-xs text-red-400">{err}</p>}
+      <div className="flex gap-2">
+        <button disabled={guardando} onClick={guardar} className="btn-primary text-sm flex-1">
+          {guardando ? 'Guardando…' : 'Guardar bonos del usuario'}
+        </button>
+        <button disabled={guardando} onClick={onCerrar} className="btn-ghost text-sm">Cancelar</button>
+      </div>
+    </div>
   );
 }
 

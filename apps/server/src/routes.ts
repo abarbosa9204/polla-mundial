@@ -439,6 +439,44 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  // --- Bonos de un usuario (SOLO super_admin) ---
+  // Caso especial: corregir los bonos de un usuario que olvidó registrarlos,
+  // SALTÁNDOSE el cierre. El usuario normal NUNCA puede editar tras el cierre.
+  // No deja audit_log (sin registro, por pedido). El timestamp se sella con la
+  // hora del cierre para no penalizar el desempate del campeón.
+  app.get('/api/admin/usuarios/:id/bonos', async (req, reply) => {
+    if (!(await requireSuperAdmin(req))) return reply.code(403).send({ error: 'Solo super admin' });
+    const { id } = req.params as { id: string };
+    try {
+      const b = await repo.getBonosUsuario(id);
+      return reply.send({
+        ok: true,
+        campeon: b?.campeon ?? null,
+        goleador: b?.goleador ?? null,
+        clasificados: b?.clasificados ?? {},
+      });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.put('/api/admin/usuarios/:id/bonos', async (req, reply) => {
+    const admin = await requireSuperAdmin(req);
+    if (!admin) return reply.code(403).send({ error: 'Solo super admin' });
+    const parsed = bonosSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Bonos inválidos', detalles: parsed.error.issues });
+    }
+    const { id } = req.params as { id: string };
+    try {
+      await guardarBonos(repo, id, parsed.data, Date.now(), { bypassLock: true, tsCierre: true });
+      await recomputarTodo(repo, env);
+      return reply.send({ ok: true });
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // --- Configuración de premios (solo super_admin) ---
   const premiosSchema = z
     .object({

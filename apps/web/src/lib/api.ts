@@ -208,6 +208,22 @@ export function adminEliminarUsuario(id: string): Promise<{ ok: true }> {
   return request('DELETE', `/api/admin/usuarios/${id}`);
 }
 
+// --- Bonos de un usuario (solo super_admin; corrige saltándose el cierre) ---
+export interface BonosUsuarioDTO {
+  campeon: string | null;
+  goleador: string | null;
+  clasificados: Record<string, string[]>;
+}
+export function adminGetBonosUsuario(id: string): Promise<{ ok: true } & BonosUsuarioDTO> {
+  return request('GET', `/api/admin/usuarios/${id}/bonos`);
+}
+export function adminSetBonosUsuario(
+  id: string,
+  input: { campeon?: string | null; goleador?: string | null; clasificados?: Record<string, string[]> },
+): Promise<{ ok: true }> {
+  return request('PUT', `/api/admin/usuarios/${id}/bonos`, input);
+}
+
 // --- Configuración SMTP (solo super_admin) ---
 export interface SmtpConfigDTO {
   host: string;

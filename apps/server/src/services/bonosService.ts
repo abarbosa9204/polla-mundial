@@ -26,11 +26,20 @@ export interface BonosResultado {
 
 const RONDAS: RondaClasificacion[] = ['R32', 'R16', 'CUARTOS', 'SEMIS', 'FINAL'];
 
+export interface GuardarBonosOpts {
+  /** Salta el cierre (solo para el admin: corrige bonos de un usuario tras cerrar). */
+  bypassLock?: boolean;
+  /** Usa la HORA DEL CIERRE como timestamp de registro (en vez de "ahora"), para
+   * no penalizar al usuario en el desempate del campeón. */
+  tsCierre?: boolean;
+}
+
 export async function guardarBonos(
   repo: SupabaseRepo,
   userId: string,
   input: BonosInput,
   ahoraMs: number,
+  opts: GuardarBonosOpts = {},
 ): Promise<BonosResultado> {
   const partidos = await repo.getPartidos();
   const kickoffs: PartidoKickoff[] = partidos.map((p) => ({
@@ -41,17 +50,23 @@ export async function guardarBonos(
   const existente = await repo.getBonosUsuario(userId);
   const nowIso = new Date(ahoraMs).toISOString();
 
+  // Editable: normalmente respeta el cierre; en modo admin (bypassLock) siempre.
+  const puedeEditar = (cierreMs: number | null) => opts.bypassLock || editableBono(cierreMs, ahoraMs);
+  // Timestamp a sellar: "ahora", o la hora del cierre si se pidió (modo admin).
+  const tsDe = (cierreMs: number | null) =>
+    opts.tsCierre && cierreMs != null ? new Date(cierreMs).toISOString() : nowIso;
+
   const aplicados: string[] = [];
   const rechazados: string[] = [];
   const update: Record<string, unknown> = {};
 
   // Campeón.
   if (input.campeon !== undefined) {
-    if (editableBono(cierres.primerKickoffMs, ahoraMs)) {
+    if (puedeEditar(cierres.primerKickoffMs)) {
       update.campeon_equipo = input.campeon;
       // Solo (re)sellar el timestamp si cambia el valor o es la primera vez.
       if (!existente || existente.campeon !== input.campeon || !existente.campeonRegistradoEn) {
-        update.campeon_registrado_en = nowIso;
+        update.campeon_registrado_en = tsDe(cierres.primerKickoffMs);
       }
       aplicados.push('campeon');
     } else {
@@ -61,10 +76,10 @@ export async function guardarBonos(
 
   // Goleador.
   if (input.goleador !== undefined) {
-    if (editableBono(cierres.primerKickoffMs, ahoraMs)) {
+    if (puedeEditar(cierres.primerKickoffMs)) {
       update.goleador_jugador = input.goleador;
       if (!existente || existente.goleador !== input.goleador || !existente.goleadorRegistradoEn) {
-        update.goleador_registrado_en = nowIso;
+        update.goleador_registrado_en = tsDe(cierres.primerKickoffMs);
       }
       aplicados.push('goleador');
     } else {
@@ -79,9 +94,9 @@ export async function guardarBonos(
     for (const ronda of RONDAS) {
       const valor = input.clasificados[ronda];
       if (valor === undefined) continue;
-      if (editableBono(cierres.clasificados[ronda], ahoraMs)) {
+      if (puedeEditar(cierres.clasificados[ronda])) {
         clasif[ronda] = valor;
-        clasifTs[ronda] = nowIso;
+        clasifTs[ronda] = tsDe(cierres.clasificados[ronda]);
         aplicados.push(`clasificados.${ronda}`);
       } else {
         rechazados.push(`clasificados.${ronda}`);
