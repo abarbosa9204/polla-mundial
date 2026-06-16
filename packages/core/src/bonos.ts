@@ -7,6 +7,22 @@
 import type { BonosTorneoConfig, DesgloseBono } from './types.js';
 
 /**
+ * Cupo máximo de selecciones que se pueden marcar en cada ronda de clasificación
+ * (sección 6.4): los equipos que avanzan a esa ronda. Fuente ÚNICA de verdad —
+ * la usan tanto la UI (para bloquear) como el servidor (para validar al guardar).
+ */
+export const CLASIFICADOS_POR_RONDA = {
+  R32: 32, // 16avos
+  R16: 16, // octavos
+  CUARTOS: 8,
+  SEMIS: 4,
+  FINAL: 2,
+} as const;
+
+/** Rondas que otorgan bono de clasificación (claves de CLASIFICADOS_POR_RONDA). */
+export type RondaClasificacion = keyof typeof CLASIFICADOS_POR_RONDA;
+
+/**
  * Bono por equipos clasificados a una ronda (16avos, octavos, cuartos, semis,
  * final). Suma `puntosPorAcierto` por cada equipo de la predicción que
  * realmente clasificó. Las predicciones duplicadas se cuentan una sola vez.

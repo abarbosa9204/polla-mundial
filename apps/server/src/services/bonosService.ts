@@ -5,6 +5,7 @@
  * (el de campeón sirve para el desempate de la sección 6.5).
  */
 import { SupabaseRepo } from '../repo.js';
+import { CLASIFICADOS_POR_RONDA } from '@polla/core';
 import {
   calcularCierresBonos,
   editableBono,
@@ -95,7 +96,10 @@ export async function guardarBonos(
       const valor = input.clasificados[ronda];
       if (valor === undefined) continue;
       if (puedeEditar(cierres.clasificados[ronda])) {
-        clasif[ronda] = valor;
+        // Regla 6.4: nadie puede marcar más selecciones de las que avanzan a la
+        // ronda. Dedupe + tope (la UI ya lo impide; esto blinda contra un cliente
+        // manipulado, que si no podría asegurar todos los aciertos marcándolas todas).
+        clasif[ronda] = [...new Set(valor)].slice(0, CLASIFICADOS_POR_RONDA[ronda]);
         clasifTs[ronda] = tsDe(cierres.clasificados[ronda]);
         aplicados.push(`clasificados.${ronda}`);
       } else {

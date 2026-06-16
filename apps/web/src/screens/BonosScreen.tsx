@@ -8,6 +8,7 @@ import { proyectarClasificados } from '../lib/clasificacion.js';
 import { fmtFechaHoraLarga } from '../lib/fases.js';
 import { calcularCierresBonos, bonoEditable, type RondaClasif } from '../lib/bonosCierres.js';
 import { useOnline } from '../lib/hooks.js';
+import { CLASIFICADOS_POR_RONDA } from '@polla/core';
 
 /** Línea de cierre por sección: "Cierra: <fecha>" o "🔒 Cerrado". */
 function Cierre({ cierreMs, ahora }: { cierreMs: number | null; ahora: number }) {
@@ -34,11 +35,11 @@ function Bandera({ equipo }: { equipo?: EquipoView }) {
 }
 
 const RONDAS = [
-  { key: 'R32', label: 'Clasificados a 16avos', cantidad: 32, pts: 1 },
-  { key: 'R16', label: 'Clasificados a octavos', cantidad: 16, pts: 2 },
-  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: 8, pts: 3 },
-  { key: 'SEMIS', label: 'Clasificados a semifinales', cantidad: 4, pts: 5 },
-  { key: 'FINAL', label: 'Clasificados a la final', cantidad: 2, pts: 8 },
+  { key: 'R32', label: 'Clasificados a 16avos', cantidad: CLASIFICADOS_POR_RONDA.R32, pts: 1 },
+  { key: 'R16', label: 'Clasificados a octavos', cantidad: CLASIFICADOS_POR_RONDA.R16, pts: 2 },
+  { key: 'CUARTOS', label: 'Clasificados a cuartos', cantidad: CLASIFICADOS_POR_RONDA.CUARTOS, pts: 3 },
+  { key: 'SEMIS', label: 'Clasificados a semifinales', cantidad: CLASIFICADOS_POR_RONDA.SEMIS, pts: 5 },
+  { key: 'FINAL', label: 'Clasificados a la final', cantidad: CLASIFICADOS_POR_RONDA.FINAL, pts: 8 },
 ] as const;
 
 export function BonosScreen() {
@@ -108,11 +109,18 @@ export function BonosScreen() {
   if (equipos.isLoading) return <Cargando />;
 
   function toggleClasif(ronda: string, equipoId: string) {
+    const max = CLASIFICADOS_POR_RONDA[ronda as keyof typeof CLASIFICADOS_POR_RONDA];
+    const actual = clasificados[ronda] ?? [];
+    const yaMarcado = actual.includes(equipoId);
+    // Tope por ronda (regla 6.4): no se puede marcar más de las que avanzan.
+    if (!yaMarcado && max != null && actual.length >= max) {
+      setMsg({ tipo: 'err', texto: `Ya marcaste el máximo de ${max} en esta ronda. Quita una para cambiar.` });
+      return;
+    }
+    setMsg(null);
     setClasificados((prev) => {
-      const actual = prev[ronda] ?? [];
-      const nuevo = actual.includes(equipoId)
-        ? actual.filter((x) => x !== equipoId)
-        : [...actual, equipoId];
+      const a = prev[ronda] ?? [];
+      const nuevo = a.includes(equipoId) ? a.filter((x) => x !== equipoId) : [...a, equipoId];
       return { ...prev, [ronda]: nuevo };
     });
   }
@@ -185,7 +193,7 @@ export function BonosScreen() {
               )}
               <button
                 disabled={!bonoEditable(cierres.clasificados.R32, ahora)}
-                onClick={() => setClasificados((c) => ({ ...c, R32: proyR32 }))}
+                onClick={() => setClasificados((c) => ({ ...c, R32: proyR32.slice(0, CLASIFICADOS_POR_RONDA.R32) }))}
                 className="btn-ghost w-full text-xs disabled:opacity-50"
               >
                 Usar esta proyección como mis clasificados a 16avos ({proyR32.length})
@@ -249,15 +257,18 @@ export function BonosScreen() {
             <div className="flex flex-wrap gap-1.5">
               {equiposArr.map((e) => {
                 const sel = (clasificados[r.key] ?? []).includes(e.id);
+                // Al llegar al tope, los NO marcados se bloquean; los marcados
+                // siguen activos para poder deseleccionar y cambiar.
+                const bloqueado = !editable || (!sel && completo);
                 return (
                   <button
                     key={e.id}
                     title={e.nombre}
-                    disabled={!editable}
-                    onClick={() => editable && toggleClasif(r.key, e.id)}
+                    disabled={bloqueado}
+                    onClick={() => !bloqueado && toggleClasif(r.key, e.id)}
                     className={`px-2 py-1 rounded-lg text-xs flex items-center gap-1 ${
                       sel ? 'bg-brand text-white' : 'bg-white/5 text-slate-300'
-                    } ${!editable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${bloqueado ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {e.crest_url && <img src={e.crest_url} alt="" className="w-4 h-4 rounded-sm object-contain" />}
                     {e.id}
