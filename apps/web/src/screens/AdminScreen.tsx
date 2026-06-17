@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, Fragment } from 'react';
+import { useEffect, useMemo, useState, useRef, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider.js';
 import {
@@ -493,7 +493,7 @@ function GestionUsuarios({ onDone }: { onDone: (m: string) => void }) {
                       <EditorBonosUsuario
                         usuario={u}
                         onCerrar={() => setBonosDe(null)}
-                        onGuardado={() => { onDone(`Bonos de ${u.display_name} actualizados ✓`); setBonosDe(null); refrescar(); }}
+                        onSaved={(msg) => { onDone(msg); refrescar(); }}
                       />
                     </td>
                   </tr>
@@ -525,11 +525,12 @@ const RONDAS_BONO = [
 function EditorBonosUsuario({
   usuario,
   onCerrar,
-  onGuardado,
+  onSaved,
 }: {
   usuario: UsuarioAdmin;
   onCerrar: () => void;
-  onGuardado: () => void;
+  /** Notifica al padre tras guardar UNA sección (sin cerrar el editor). */
+  onSaved: (msg: string) => void;
 }) {
   const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
   const jugadores = useQuery({ queryKey: ['jugadores'], queryFn: fetchJugadores });
@@ -537,16 +538,41 @@ function EditorBonosUsuario({
   const [campeon, setCampeon] = useState('');
   const [goleador, setGoleador] = useState('');
   const [clasificados, setClasificados] = useState<Record<string, string[]>>({});
-  const [guardando, setGuardando] = useState(false);
+  const [guardandoSec, setGuardandoSec] = useState<string | null>(null);
+  const [okSec, setOkSec] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Precarga UNA sola vez lo ya almacenado, para no pisar las ediciones en curso
+  // si la query se refresca (foco, etc.). Cada sección se guarda por separado.
+  const cargado = useRef(false);
   useEffect(() => {
-    if (bonos.data) {
+    if (bonos.data && !cargado.current) {
+      cargado.current = true;
       setCampeon(bonos.data.campeon ?? '');
       setGoleador(bonos.data.goleador ?? '');
       setClasificados(bonos.data.clasificados ?? {});
     }
   }, [bonos.data]);
+
+  // Guarda SOLO la sección indicada (el servidor hace merge: las demás no se tocan).
+  async function guardarSeccion(
+    clave: string,
+    etiqueta: string,
+    input: { campeon?: string | null; goleador?: string | null; clasificados?: Record<string, string[]> },
+  ) {
+    setGuardandoSec(clave);
+    setErr(null);
+    setOkSec(null);
+    try {
+      await adminSetBonosUsuario(usuario.id, input);
+      setOkSec(clave);
+      onSaved(`${usuario.display_name}: ${etiqueta} guardado ✓`);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'No se pudo guardar.');
+    } finally {
+      setGuardandoSec(null);
+    }
+  }
 
   const equiposArr = useMemo(
     () => [...(equipos.data?.values() ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre)),
@@ -576,48 +602,65 @@ function EditorBonosUsuario({
       return;
     }
     setErr(null);
+    setOkSec(null);
     setClasificados((prev) => {
       const a = prev[ronda] ?? [];
       return { ...prev, [ronda]: a.includes(id) ? a.filter((x) => x !== id) : [...a, id] };
     });
   }
 
-  async function guardar() {
-    setGuardando(true);
-    setErr(null);
-    try {
-      await adminSetBonosUsuario(usuario.id, { campeon: campeon || null, goleador: goleador || null, clasificados });
-      onGuardado();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'No se pudo guardar.');
-    } finally {
-      setGuardando(false);
-    }
-  }
-
   if (bonos.isLoading) return <p className="text-xs text-slate-400">Cargando bonos del usuario…</p>;
+
+  /** Botón de guardado de una sección concreta (función-render, no componente). */
+  const botonGuardar = (
+    clave: string,
+    etiqueta: string,
+    input: { campeon?: string | null; goleador?: string | null; clasificados?: Record<string, string[]> },
+  ) => (
+    <button
+      disabled={guardandoSec !== null}
+      onClick={() => guardarSeccion(clave, etiqueta, input)}
+      className="btn-primary text-xs px-3 whitespace-nowrap disabled:opacity-50"
+    >
+      {guardandoSec === clave ? 'Guardando…' : okSec === clave ? 'Guardado ✓' : 'Guardar'}
+    </button>
+  );
 
   return (
     <div className="rounded-xl bg-slate-800/60 p-3 space-y-3">
       <p className="text-xs text-amber-300">
         Editando bonos de <b>{usuario.display_name}</b> — se aplica <b>saltándose el cierre</b> (caso especial).
+        Cada sección se guarda por separado; lo no editado se conserva.
       </p>
       <div>
         <p className="text-[11px] text-slate-400 mb-1">🏆 Campeón</p>
-        <SelectorBuscador opciones={opcEquipos} value={campeon} onChange={setCampeon} placeholder="Buscar selección…" vacioLabel="— Sin campeón —" />
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <SelectorBuscador opciones={opcEquipos} value={campeon} onChange={(v) => { setCampeon(v); setOkSec(null); }} placeholder="Buscar selección…" vacioLabel="— Sin campeón —" />
+          </div>
+          {botonGuardar("campeon", "campeón", { campeon: campeon || null })}
+        </div>
       </div>
       <div>
         <p className="text-[11px] text-slate-400 mb-1">⚽ Goleador</p>
-        <SelectorBuscador opciones={opcJugadores} value={goleador} onChange={setGoleador} placeholder="Buscar jugador…" vacioLabel="— Sin goleador —" />
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <SelectorBuscador opciones={opcJugadores} value={goleador} onChange={(v) => { setGoleador(v); setOkSec(null); }} placeholder="Buscar jugador…" vacioLabel="— Sin goleador —" />
+          </div>
+          {botonGuardar("goleador", "goleador", { goleador: goleador || null })}
+        </div>
       </div>
       {RONDAS_BONO.map((r) => {
         const sel = clasificados[r.key] ?? [];
         const completo = sel.length >= r.cantidad;
         return (
           <div key={r.key}>
-            <p className="text-[11px] text-slate-400 mb-1">
-              {r.label} <span className={completo ? 'text-emerald-400' : 'text-slate-500'}>({sel.length}/{r.cantidad})</span>
-            </p>
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <p className="text-[11px] text-slate-400">
+                {r.label} <span className={completo ? 'text-emerald-400' : 'text-slate-500'}>({sel.length}/{r.cantidad})</span>
+              </p>
+              {botonGuardar(`clasif:${r.key}`, r.label, { clasificados: { [r.key]: sel } })}
+            </div>
             <div className="flex flex-wrap gap-1">
               {equiposArr.map((e) => {
                 const on = sel.includes(e.id);
@@ -641,11 +684,8 @@ function EditorBonosUsuario({
         );
       })}
       {err && <p className="text-xs text-red-400">{err}</p>}
-      <div className="flex gap-2">
-        <button disabled={guardando} onClick={guardar} className="btn-primary text-sm flex-1">
-          {guardando ? 'Guardando…' : 'Guardar bonos del usuario'}
-        </button>
-        <button disabled={guardando} onClick={onCerrar} className="btn-ghost text-sm">Cancelar</button>
+      <div className="flex justify-end">
+        <button onClick={onCerrar} className="btn-ghost text-sm">Cerrar</button>
       </div>
     </div>
   );
