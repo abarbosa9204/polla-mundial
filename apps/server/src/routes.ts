@@ -442,8 +442,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // --- Bonos de un usuario (SOLO super_admin) ---
   // Caso especial: corregir los bonos de un usuario que olvidó registrarlos,
   // SALTÁNDOSE el cierre. El usuario normal NUNCA puede editar tras el cierre.
-  // No deja audit_log (sin registro, por pedido). El timestamp se sella con la
-  // hora del cierre para no penalizar el desempate del campeón.
+  // El PUT deja audit_log (quién/qué/cuándo real, transparencia). El timestamp
+  // DEL BONO se sella con la hora del cierre para no penalizar el desempate del
+  // campeón; la hora real de la edición queda aparte en el audit_log.
   app.get('/api/admin/usuarios/:id/bonos', async (req, reply) => {
     if (!(await requireSuperAdmin(req))) return reply.code(403).send({ error: 'Solo super admin' });
     const { id } = req.params as { id: string };
@@ -469,8 +470,29 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
     const { id } = req.params as { id: string };
     try {
+      // Snapshot ANTES (para la bitácora de auditoría: antes → después).
+      const antes = await repo.getBonosUsuario(id);
       await guardarBonos(repo, id, parsed.data, Date.now(), { bypassLock: true, tsCierre: true });
       await recomputarTodo(repo, env);
+      // AUDITORÍA (transparencia): registra quién editó, a quién, qué y la hora REAL
+      // de la edición (el sello del bono sigue siendo la hora del cierre). Es
+      // best-effort: si el log falla, NO afecta el guardado ya realizado.
+      try {
+        await getServiceClient().from('audit_log').insert({
+          admin_id: admin.userId,
+          accion: 'bonos_usuario_editar',
+          detalle: {
+            usuario: id,
+            hora_real: new Date().toISOString(),
+            cambios: parsed.data,
+            antes: antes
+              ? { campeon: antes.campeon, goleador: antes.goleador, clasificados: antes.clasificados }
+              : null,
+          },
+        });
+      } catch (logErr) {
+        req.log.warn({ err: logErr }, 'No se pudo registrar audit_log de edición de bonos');
+      }
       return reply.send({ ok: true });
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
