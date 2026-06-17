@@ -532,6 +532,7 @@ function EditorBonosUsuario({
   /** Notifica al padre tras guardar UNA sección (sin cerrar el editor). */
   onSaved: (msg: string) => void;
 }) {
+  const qc = useQueryClient();
   const equipos = useQuery({ queryKey: ['equipos'], queryFn: fetchEquipos });
   const jugadores = useQuery({ queryKey: ['jugadores'], queryFn: fetchJugadores });
   const bonos = useQuery({ queryKey: ['admin-bonos', usuario.id], queryFn: () => adminGetBonosUsuario(usuario.id) });
@@ -565,6 +566,9 @@ function EditorBonosUsuario({
     setOkSec(null);
     try {
       await adminSetBonosUsuario(usuario.id, input);
+      // Refresca la caché (persistida) para que al reabrir/recargar NO muestre el
+      // valor viejo. Sin esto parecía "no guardó" aunque el server sí guardaba.
+      await qc.invalidateQueries({ queryKey: ['admin-bonos', usuario.id] });
       setOkSec(clave);
       onSaved(`${usuario.display_name}: ${etiqueta} guardado ✓`);
     } catch (e) {
@@ -684,9 +688,23 @@ function EditorBonosUsuario({
         );
       })}
       {err && <p className="text-xs text-red-400">{err}</p>}
-      <div className="flex justify-end">
-        <button onClick={onCerrar} className="btn-ghost text-sm">Cerrar</button>
+      <div className="flex gap-2 pt-1 border-t border-white/5">
+        <button
+          disabled={guardandoSec !== null}
+          onClick={() => guardarSeccion('todo', 'todos los bonos', {
+            campeon: campeon || null,
+            goleador: goleador || null,
+            clasificados,
+          })}
+          className="btn-primary text-sm flex-1 disabled:opacity-50"
+        >
+          {guardandoSec === 'todo' ? 'Guardando…' : okSec === 'todo' ? 'Guardado ✓' : 'Guardar todo'}
+        </button>
+        <button disabled={guardandoSec !== null} onClick={onCerrar} className="btn-ghost text-sm">Cerrar</button>
       </div>
+      <p className="text-[11px] text-slate-500">
+        Puedes guardar cada sección por separado, o usar <b>Guardar todo</b> para guardar campeón, goleador y todas las rondas a la vez.
+      </p>
     </div>
   );
 }
