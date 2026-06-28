@@ -18,6 +18,8 @@ export type PartidoActual = Pick<
   | 'kickoff_utc'
   | 'sellado'
   | 'correccion_manual'
+  | 'equipo_a'
+  | 'equipo_b'
 >;
 
 export function necesitaActualizar(
@@ -47,7 +49,18 @@ export function necesitaActualizar(
   const nuevoMenos = nuevo.estado === 'SCHEDULED' || nuevo.estado === 'TIMED';
   if (yaAvanzado && nuevoMenos) return false;
 
+  // ASIGNACIÓN DEL CUADRO: cuando football-data resuelve los cruces de
+  // eliminatoria, RELLENA equipo_a/equipo_b en un partido que ya existía como
+  // "por definir". El estado/marcador/kickoff no cambian, así que sin esto el
+  // poller nunca traería los equipos clasificados (16avos, octavos, etc.).
+  // Solo cuenta como cambio si el equipo NUEVO viene definido y difiere: no
+  // degradamos a null si la API responde incompleta (mismo criterio NO-DEGRADAR).
+  const equipoACambia = nuevo.equipoA != null && nuevo.equipoA.id !== actual.equipo_a;
+  const equipoBCambia = nuevo.equipoB != null && nuevo.equipoB.id !== actual.equipo_b;
+
   return (
+    equipoACambia ||
+    equipoBCambia ||
     actual.estado !== nuevo.estado ||
     actual.goles_a_90 !== nuevo.golesA90 ||
     actual.goles_b_90 !== nuevo.golesB90 ||

@@ -15,7 +15,14 @@ const actual = (over: Partial<PartidoActual> = {}): PartidoActual => ({
   estado: 'IN_PLAY', goles_a_90: 1, goles_b_90: 0, hubo_extra: false,
   goles_a_extra: null, goles_b_extra: null, ganador_final: null,
   kickoff_utc: '2026-06-11T16:00:00.000Z', sellado: false, correccion_manual: false,
+  equipo_a: null, equipo_b: null,
   ...over,
+});
+
+const conEquipos = (a: string | null, b: string | null): PartidoNormalizado => ({
+  ...nuevo,
+  equipoA: a ? { id: a, nombre: a, crestUrl: null } : null,
+  equipoB: b ? { id: b, nombre: b, crestUrl: null } : null,
 });
 
 describe('necesitaActualizar (escritura mínima)', () => {
@@ -42,6 +49,29 @@ describe('necesitaActualizar (escritura mínima)', () => {
   });
   it('reprogramación (cambia kickoff) ⇒ true', () => {
     expect(necesitaActualizar(nuevo, actual({ kickoff_utc: '2026-06-12T16:00:00.000Z' }))).toBe(true);
+  });
+  it('cuadro: se resuelven los equipos de un cruce "por definir" ⇒ true', () => {
+    // El partido existe (SCHEDULED, sin equipos); la API ya trae los clasificados.
+    const apiConEquipos = { ...conEquipos('ARG', 'BRA'), estado: 'SCHEDULED' as const };
+    const enBd = actual({ estado: 'SCHEDULED', goles_a_90: null, goles_b_90: null, equipo_a: null, equipo_b: null });
+    expect(necesitaActualizar(apiConEquipos, enBd)).toBe(true);
+  });
+  it('cuadro: cambia uno de los equipos del cruce ⇒ true', () => {
+    const apiConEquipos = { ...conEquipos('ARG', 'BRA'), estado: 'SCHEDULED' as const };
+    const enBd = actual({ estado: 'SCHEDULED', goles_a_90: null, goles_b_90: null, equipo_a: 'ARG', equipo_b: 'URY' });
+    expect(necesitaActualizar(apiConEquipos, enBd)).toBe(true);
+  });
+  it('cuadro: NO degrada equipos a null si la API responde incompleta ⇒ false', () => {
+    // Mismo estado/marcador en API y BD; lo único distinto serían los equipos,
+    // que la API trae nulos. No debe disparar reescritura (no se pierden equipos).
+    const apiSinEquipos = {
+      ...conEquipos(null, null),
+      estado: 'SCHEDULED' as const,
+      golesA90: null,
+      golesB90: null,
+    };
+    const enBd = actual({ estado: 'SCHEDULED', goles_a_90: null, goles_b_90: null, equipo_a: 'ARG', equipo_b: 'BRA' });
+    expect(necesitaActualizar(apiSinEquipos, enBd)).toBe(false);
   });
 });
 
