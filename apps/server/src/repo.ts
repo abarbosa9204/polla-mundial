@@ -241,6 +241,7 @@ export class SupabaseRepo implements PronosticoRepo {
       posicion: number;
       movimiento: number;
       bonosParcialesDetalle?: Record<string, number>;
+      bonosFirmesDetalle?: Record<string, number>;
     }[],
   ): Promise<void> {
     if (filas.length === 0) return;
@@ -257,14 +258,16 @@ export class SupabaseRepo implements PronosticoRepo {
       posicion: f.posicion,
       movimiento: f.movimiento,
       bonos_parciales: f.bonosParcialesDetalle ?? {},
+      bonos_firmes: f.bonosFirmesDetalle ?? {},
     }));
     const { error } = await this.db.from('tabla_posiciones').upsert(rows, { onConflict: 'user_id' });
     if (error) {
-      // RESILIENTE: si la columna `bonos_parciales` aún no está migrada en este
-      // entorno, reintentar sin ella (la tabla sigue funcionando; solo no se
-      // guarda el desglose hasta aplicar la migración 0017).
-      if (/bonos_parciales/i.test(error.message)) {
-        const sinCol = rows.map(({ bonos_parciales, ...r }) => r);
+      // RESILIENTE: si las columnas de desglose (`bonos_parciales` migración 0017,
+      // `bonos_firmes` migración 0018) aún no están migradas en este entorno,
+      // reintentar sin ellas (la tabla sigue funcionando; solo no se guarda el
+      // desglose hasta aplicar la migración correspondiente).
+      if (/bonos_parciales|bonos_firmes/i.test(error.message)) {
+        const sinCol = rows.map(({ bonos_parciales, bonos_firmes, ...r }) => r);
         const { error: e2 } = await this.db
           .from('tabla_posiciones')
           .upsert(sinCol, { onConflict: 'user_id' });

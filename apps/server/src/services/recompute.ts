@@ -166,6 +166,13 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
     }
     const puntosBonosParciales = Object.values(bonosParcialesDetalle).reduce((s, v) => s + v, 0);
 
+    // Desglose FIRME POR CATEGORÍA = bonos oficiales por tipo (>0). Espejo del
+    // parcial; la parte de partidos firmes se calcula en la UI (confirmados − Σ).
+    const bonosFirmesDetalle: Record<string, number> = {};
+    for (const d of bonos.detalle) {
+      if (d.total > 0) bonosFirmesDetalle[ETIQUETA_BONO[d.tipo] ?? d.tipo] = d.total;
+    }
+
     return {
       userId: u.userId,
       displayName: u.displayName,
@@ -175,6 +182,7 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
       puntosBonos: bonos.total,
       puntosBonosParciales,
       bonosParcialesDetalle,
+      bonosFirmesDetalle,
     };
   });
 

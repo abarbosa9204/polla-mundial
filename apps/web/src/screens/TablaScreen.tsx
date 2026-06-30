@@ -120,11 +120,45 @@ function FilaTabla({
             <span>Marcadores exactos: <b className="text-slate-200">{f.marcadores_exactos}</b></span>
             <span>Acertó ganador/empate: <b className="text-slate-200">{f.resultados_1x2}</b></span>
           </div>
+          {f.puntos_confirmados > 0 && <DesgloseFirme f={f} />}
           {f.puntos_provisionales > 0 && <DesglosePartial f={f} />}
           <MarcadoresUsuario userId={f.user_id} />
         </div>
       )}
     </li>
+  );
+}
+
+/** Etiqueta legible de cada categoría de bono (clave compartida con el servidor). */
+function etiquetaBono(k: string): string {
+  if (k === 'Goleador') return 'Goleador';
+  if (k === 'Campeón') return 'Campeón';
+  return `Clasificados a ${k}`;
+}
+
+/** Desglose claro de los puntos FIRMES: partidos confirmados + bonos por categoría. */
+function DesgloseFirme({ f }: { f: TablaPosicionRow }) {
+  const bonos = f.bonos_firmes;
+  // `bonos_firmes` puede no existir aún (columna sin migrar): nota genérica.
+  if (!bonos) {
+    return (
+      <p className="text-[11px] text-emerald-300/80">
+        <b>+{f.puntos_confirmados} firmes</b> (partidos confirmados y/o bonos ya consolidados).
+      </p>
+    );
+  }
+  const sumaBonos = Object.values(bonos).reduce((s, v) => s + (v || 0), 0);
+  const partidos = f.puntos_confirmados - sumaBonos;
+  const lineasBonos = Object.entries(bonos).filter(([, v]) => v > 0);
+  return (
+    <div className="text-[11px] text-emerald-300/90 space-y-0.5">
+      <div className="text-slate-400">Tus puntos firmes:</div>
+      {partidos > 0 && <div>• Partidos (confirmados): <b>+{partidos}</b></div>}
+      {lineasBonos.map(([k, v]) => (
+        <div key={k}>• {etiquetaBono(k)}: <b>+{v}</b></div>
+      ))}
+      {partidos <= 0 && lineasBonos.length === 0 && <div>• Sin desglose disponible aún.</div>}
+    </div>
   );
 }
 
@@ -150,7 +184,7 @@ function DesglosePartial({ f }: { f: TablaPosicionRow }) {
       <div className="text-slate-400">Tus parciales (pueden cambiar):</div>
       {enJuego > 0 && <div>• En juego (partidos): <b>+{enJuego}</b></div>}
       {lineasBonos.map(([k, v]) => (
-        <div key={k}>• {k === 'Goleador' ? 'Goleador' : `Clasificados a ${k}`}: <b>+{v}</b></div>
+        <div key={k}>• {etiquetaBono(k)}: <b>+{v}</b></div>
       ))}
       {enJuego <= 0 && lineasBonos.length === 0 && <div>• Sin desglose disponible aún.</div>}
       <div className="text-slate-500 pt-0.5">

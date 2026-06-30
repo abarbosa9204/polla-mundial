@@ -49,4 +49,6 @@ export interface UsuarioTabla {
   puntosBonosParciales?: number;
   /** Desglose de los bonos parciales por categoría ({ '16avos': 2, Goleador: 0 }). */
   bonosParcialesDetalle?: Record<string, number>;
+  /** Desglose de los bonos FIRMES por categoría ({ '16avos': 26, Campeón: 20 }). */
+  bonosFirmesDetalle?: Record<string, number>;
 }

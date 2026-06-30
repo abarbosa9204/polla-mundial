@@ -25,6 +25,8 @@ export interface FilaTablaResultado {
   movimiento: number;
   /** Desglose de los bonos parciales por categoría (para el detalle). */
   bonosParcialesDetalle?: Record<string, number>;
+  /** Desglose de los bonos FIRMES por categoría (para el detalle). */
+  bonosFirmesDetalle?: Record<string, number>;
 }
 
 interface Acumulado {
@@ -69,6 +71,7 @@ export function construirTablaPosiciones(
       resultados1x2: a.x1x2,
       timestampCampeon: u.timestampCampeon,
       bonosParcialesDetalle: u.bonosParcialesDetalle,
+      bonosFirmesDetalle: u.bonosFirmesDetalle,
     };
   });
 
