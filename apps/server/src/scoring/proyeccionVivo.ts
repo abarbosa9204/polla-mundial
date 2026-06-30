@@ -14,6 +14,7 @@
  * Desempate de grupo: pts → diferencia de gol → goles a favor → id. (Sin
  * head-to-head; suficiente para una proyección provisional.)
  */
+import { CLASIFICADOS_POR_RONDA } from '@polla/core';
 import type { RondaClasificacion } from './bonos.js';
 
 export interface PartidoProyeccion {
@@ -126,6 +127,38 @@ export function proyectarClasificadosVivo(
       if (w) ganadores.push(w);
     }
     if (ganadores.length) out[ronda] = ganadores;
+  }
+  return out;
+}
+
+/**
+ * Clasificados OFICIALES derivados del CUADRO REAL ya resuelto: los equipos que
+ * football-data colocó en los partidos de cada ronda SON sus clasificados
+ * (reflejan los desempates oficiales de FIFA, head-to-head incluido). A
+ * diferencia de `proyectarClasificadosVivo` —que estima desde las tablas de
+ * grupo con un desempate simplificado— esto es AUTORITATIVO.
+ *
+ * Una ronda SOLO se devuelve cuando su llave está COMPLETA: el nº de equipos
+ * asignados a esa fase coincide con el cupo de la ronda (`CLASIFICADOS_POR_RONDA`).
+ * Así nunca se consolida una ronda a medio resolver (evita oscilaciones de
+ * puntaje). El `tercer puesto` no es ronda de clasificación y se ignora.
+ */
+export function clasificadosDesdeCuadro(
+  partidos: readonly Pick<PartidoProyeccion, 'fase' | 'equipo_a' | 'equipo_b'>[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const ronda of Object.keys(CLASIFICADOS_POR_RONDA) as RondaClasificacion[]) {
+    const equipos = new Set<string>();
+    let hayPartidos = false;
+    for (const p of partidos) {
+      if (p.fase !== ronda) continue;
+      hayPartidos = true;
+      if (p.equipo_a) equipos.add(p.equipo_a);
+      if (p.equipo_b) equipos.add(p.equipo_b);
+    }
+    if (hayPartidos && equipos.size === CLASIFICADOS_POR_RONDA[ronda]) {
+      out[ronda] = [...equipos];
+    }
   }
   return out;
 }

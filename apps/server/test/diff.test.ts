@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { necesitaActualizar, requiereRecalculo } from '../src/poller/diff.js';
+import { necesitaActualizar, requiereRecalculo, huboAsignacionEquipos } from '../src/poller/diff.js';
 import type { PartidoNormalizado } from '../src/poller/model.js';
 import type { PartidoActual } from '../src/poller/diff.js';
 
@@ -80,5 +80,27 @@ describe('requiereRecalculo', () => {
     expect(requiereRecalculo(nuevo)).toBe(true);
     expect(requiereRecalculo({ ...nuevo, estado: 'FINISHED' })).toBe(true);
     expect(requiereRecalculo({ ...nuevo, estado: 'SCHEDULED' })).toBe(false);
+  });
+});
+
+describe('huboAsignacionEquipos (disparo de recálculo al cargar llave)', () => {
+  it('se rellenan los equipos de un cruce "por definir" ⇒ true', () => {
+    const enBd = actual({ estado: 'SCHEDULED', equipo_a: null, equipo_b: null });
+    expect(huboAsignacionEquipos(conEquipos('ARG', 'BRA'), enBd)).toBe(true);
+  });
+  it('cambia uno de los equipos del cruce ⇒ true', () => {
+    const enBd = actual({ estado: 'SCHEDULED', equipo_a: 'ARG', equipo_b: 'URY' });
+    expect(huboAsignacionEquipos(conEquipos('ARG', 'BRA'), enBd)).toBe(true);
+  });
+  it('mismos equipos ya asignados ⇒ false', () => {
+    const enBd = actual({ estado: 'SCHEDULED', equipo_a: 'ARG', equipo_b: 'BRA' });
+    expect(huboAsignacionEquipos(conEquipos('ARG', 'BRA'), enBd)).toBe(false);
+  });
+  it('API responde con equipos null ⇒ false (no degrada)', () => {
+    const enBd = actual({ estado: 'SCHEDULED', equipo_a: 'ARG', equipo_b: 'BRA' });
+    expect(huboAsignacionEquipos(conEquipos(null, null), enBd)).toBe(false);
+  });
+  it('partido nuevo (sin actual) con equipos ⇒ true', () => {
+    expect(huboAsignacionEquipos(conEquipos('ARG', 'BRA'), undefined)).toBe(true);
   });
 });

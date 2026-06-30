@@ -144,6 +144,19 @@ export class SupabaseRepo implements PronosticoRepo {
     };
   }
 
+  /**
+   * Persiste el mapa de clasificados OFICIALES (consolidación automática del
+   * cuadro real). Solo lo invoca el recálculo cuando una llave queda completa;
+   * no toca campeón ni goleadores. Idempotente: se escribe una vez por ronda.
+   */
+  async setClasificadosOficiales(clasificados: Record<string, string[]>): Promise<void> {
+    const { error } = await this.db
+      .from('resultados_torneo')
+      .update({ clasificados, updated_at: new Date().toISOString() })
+      .eq('id', 1);
+    if (error) throw error;
+  }
+
   async getBonosPicks(): Promise<
     {
       userId: string;

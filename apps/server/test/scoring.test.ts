@@ -13,6 +13,7 @@ import {
   construirTablaPosiciones,
   computarBonosUsuario,
   proyectarClasificadosVivo,
+  clasificadosDesdeCuadro,
   type PartidoScoring,
   type UsuarioTabla,
   type DesgloseCalculado,
@@ -265,5 +266,49 @@ describe('Proyección de clasificados EN VIVO (bono parcial)', () => {
     ];
     const proy = proyectarClasificadosVivo(partidos);
     expect(proy.R16).toEqual(['BRA']); // solo el finalizado
+  });
+});
+
+describe('clasificadosDesdeCuadro (consolidación del cuadro real)', () => {
+  const P = (o: Partial<PartidoProyeccion>): PartidoProyeccion => ({
+    fase: 'GRUPOS', grupo: null, estado: 'SCHEDULED',
+    equipo_a: null, equipo_b: null, goles_a_90: null, goles_b_90: null, ganador_final: null, ...o,
+  });
+
+  it('FINAL completa (2 equipos) ⇒ consolida los finalistas', () => {
+    const out = clasificadosDesdeCuadro([P({ fase: 'FINAL', equipo_a: 'ARG', equipo_b: 'FRA' })]);
+    expect(new Set(out.FINAL)).toEqual(new Set(['ARG', 'FRA']));
+  });
+
+  it('llave incompleta (falta un equipo del cupo) ⇒ NO consolida esa ronda', () => {
+    // FINAL con un solo equipo definido: 1 ≠ cupo(2) ⇒ no se consolida.
+    const out = clasificadosDesdeCuadro([P({ fase: 'FINAL', equipo_a: 'ARG', equipo_b: null })]);
+    expect(out.FINAL).toBeUndefined();
+  });
+
+  it('SEMIS completa (4 equipos en 2 partidos) ⇒ consolida los 4', () => {
+    const out = clasificadosDesdeCuadro([
+      P({ fase: 'SEMIS', equipo_a: 'ARG', equipo_b: 'FRA' }),
+      P({ fase: 'SEMIS', equipo_a: 'BRA', equipo_b: 'ESP' }),
+    ]);
+    expect(new Set(out.SEMIS)).toEqual(new Set(['ARG', 'FRA', 'BRA', 'ESP']));
+  });
+
+  it('SEMIS a medio resolver (solo 2 de 4) ⇒ NO consolida', () => {
+    const out = clasificadosDesdeCuadro([
+      P({ fase: 'SEMIS', equipo_a: 'ARG', equipo_b: 'FRA' }),
+      P({ fase: 'SEMIS', equipo_a: null, equipo_b: null }),
+    ]);
+    expect(out.SEMIS).toBeUndefined();
+  });
+
+  it('rondas sin partidos no aparecen; el tercer puesto se ignora', () => {
+    const out = clasificadosDesdeCuadro([
+      P({ fase: 'FINAL', equipo_a: 'ARG', equipo_b: 'FRA' }),
+      P({ fase: 'TERCER_PUESTO', equipo_a: 'BRA', equipo_b: 'ESP' }),
+    ]);
+    expect(out.SEMIS).toBeUndefined();
+    expect(out.CUARTOS).toBeUndefined();
+    expect(out.TERCER_PUESTO).toBeUndefined();
   });
 });

@@ -14,6 +14,7 @@ import {
   construirTablaPosiciones,
   computarBonosUsuario,
   proyectarClasificadosVivo,
+  clasificadosDesdeCuadro,
   type DesgloseCalculado,
   type UsuarioTabla,
   type PronosticoUsuario,
@@ -102,14 +103,39 @@ export async function recomputarTodo(repo: SupabaseRepo, env?: Env): Promise<Rec
     }
   }
 
+  // --- Consolidación automática de clasificados OFICIALES desde el CUADRO ---
+  // Cuando football-data resuelve por completo la llave de una ronda (16avos,
+  // octavos…), esos equipos SON los clasificados oficiales (desempates reales de
+  // FIFA). Se persiste UNA vez por ronda y así el bono pasa de PARCIAL a FIRME
+  // sin cambiar el total (solo se mueve de provisional a confirmado). NO se pisa
+  // una ronda que el admin haya fijado a mano (precedencia del admin).
+  const clasificadosCuadro = clasificadosDesdeCuadro(partidos);
+  const rondasNuevas: Record<string, string[]> = {};
+  for (const r of RONDAS) {
+    const yaOficial =
+      Array.isArray(resultados.clasificados[r]) && resultados.clasificados[r].length > 0;
+    if (!yaOficial && clasificadosCuadro[r]?.length) rondasNuevas[r] = clasificadosCuadro[r];
+  }
+  if (Object.keys(rondasNuevas).length > 0) {
+    resultados.clasificados = { ...resultados.clasificados, ...rondasNuevas };
+    await repo.setClasificadosOficiales(resultados.clasificados);
+  }
+
   // --- Bonos por usuario ---
   const clasificadosReales = mapaClasificados(resultados.clasificados);
   const picksPorUsuario = new Map(bonosPicks.map((b) => [b.userId, b]));
 
   // Resultado EN VIVO (provisional) para los bonos parciales: clasificados
   // proyectados desde los partidos actuales + goleador(es) líder(es). Campeón
-  // NO se proyecta (decisión de producto).
-  const clasificadosVivos = mapaClasificados(proyectarClasificadosVivo(partidos));
+  // NO se proyecta (decisión de producto). Las rondas YA oficiales (firmes) se
+  // excluyen de la proyección para que no generen un parcial residual.
+  const proyeccion = proyectarClasificadosVivo(partidos);
+  for (const r of RONDAS) {
+    if (Array.isArray(resultados.clasificados[r]) && resultados.clasificados[r].length > 0) {
+      delete proyeccion[r];
+    }
+  }
+  const clasificadosVivos = mapaClasificados(proyeccion);
   const resultadosVivos = {
     clasificados: clasificadosVivos,
     campeon: null,

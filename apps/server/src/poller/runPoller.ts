@@ -12,7 +12,7 @@ import { fetchPartidosApiFootball } from './apiFootballClient.js';
 import { fetchMundialEnVivo } from './sportdbClient.js';
 import { traducirPais } from './traducciones.js';
 import { canonicalTla } from './codigosEquipos.js';
-import { necesitaActualizar, requiereRecalculo } from './diff.js';
+import { necesitaActualizar, requiereRecalculo, huboAsignacionEquipos } from './diff.js';
 import type { PartidoNormalizado } from './model.js';
 import { recomputarTodo } from '../services/recompute.js';
 
@@ -89,7 +89,11 @@ export async function runPoller(repo: SupabaseRepo, env: Env): Promise<PollResul
         if (actual?.correccion_manual) row.correccion_manual = false;
         await repo.upsertPartido(row);
         cambios++;
-        if (requiereRecalculo(n)) recalcular = true;
+        // Recalcular si el partido puntúa (en juego/finalizado) O si se acaban
+        // de asignar los equipos del cuadro: así la consolidación de clasificados
+        // y el refresco de bonos ocurren al cargar la llave, aunque el partido
+        // siga programado.
+        if (requiereRecalculo(n) || huboAsignacionEquipos(n, actual)) recalcular = true;
       }
     }
 

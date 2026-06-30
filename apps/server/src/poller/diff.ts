@@ -53,14 +53,8 @@ export function necesitaActualizar(
   // eliminatoria, RELLENA equipo_a/equipo_b en un partido que ya existía como
   // "por definir". El estado/marcador/kickoff no cambian, así que sin esto el
   // poller nunca traería los equipos clasificados (16avos, octavos, etc.).
-  // Solo cuenta como cambio si el equipo NUEVO viene definido y difiere: no
-  // degradamos a null si la API responde incompleta (mismo criterio NO-DEGRADAR).
-  const equipoACambia = nuevo.equipoA != null && nuevo.equipoA.id !== actual.equipo_a;
-  const equipoBCambia = nuevo.equipoB != null && nuevo.equipoB.id !== actual.equipo_b;
-
   return (
-    equipoACambia ||
-    equipoBCambia ||
+    huboAsignacionEquipos(nuevo, actual) ||
     actual.estado !== nuevo.estado ||
     actual.goles_a_90 !== nuevo.golesA90 ||
     actual.goles_b_90 !== nuevo.golesB90 ||
@@ -70,6 +64,22 @@ export function necesitaActualizar(
     actual.ganador_final !== nuevo.ganadorFinal ||
     Date.parse(actual.kickoff_utc) !== Date.parse(nuevo.kickoffUtc) // reprogramación
   );
+}
+
+/**
+ * ¿La actualización RELLENA o CAMBIA los equipos del cruce? (asignación del
+ * cuadro de eliminatoria). Solo cuenta si el equipo NUEVO viene definido y
+ * difiere del actual: NUNCA degrada a null si la API responde incompleta
+ * (mismo criterio NO-DEGRADAR). Sirve tanto para decidir la escritura mínima
+ * como para disparar el recálculo al cargar una llave (aunque siga programada).
+ */
+export function huboAsignacionEquipos(
+  nuevo: PartidoNormalizado,
+  actual: PartidoActual | undefined,
+): boolean {
+  const a = nuevo.equipoA != null && nuevo.equipoA.id !== (actual?.equipo_a ?? null);
+  const b = nuevo.equipoB != null && nuevo.equipoB.id !== (actual?.equipo_b ?? null);
+  return a || b;
 }
 
 /** ¿El partido requiere (re)cálculo de puntos tras actualizarse? */
