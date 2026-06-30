@@ -62,6 +62,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/health', async () => ({ ok: true, ts: new Date().toISOString() }));
 
+  // Versión desplegada: Render inyecta RENDER_GIT_COMMIT en cada deploy. Permite
+  // verificar DESDE FUERA qué commit está corriendo (curl /api/version).
+  app.get('/api/version', async () => ({
+    ok: true,
+    commit: process.env.RENDER_GIT_COMMIT ?? 'dev',
+    ts: new Date().toISOString(),
+  }));
+
   // (El registro y el reset de contraseña los maneja Supabase Auth desde el
   // cliente; Supabase envía esos correos con el SMTP configurado en su panel.)
 
