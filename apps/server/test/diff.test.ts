@@ -35,8 +35,32 @@ describe('necesitaActualizar (escritura mínima)', () => {
   it('cambió el marcador ⇒ true', () => {
     expect(necesitaActualizar(nuevo, actual({ goles_a_90: 0 }))).toBe(true);
   });
-  it('partido SELLADO ⇒ false aunque la API difiera', () => {
+  it('sellado + API NO finalizada (IN_PLAY) ⇒ false (no se toca)', () => {
     expect(necesitaActualizar(nuevo, actual({ sellado: true, goles_a_90: 5 }))).toBe(false);
+  });
+  it('sellado + football-data CORRIGE el marcador final (gol anulado) ⇒ true', () => {
+    const finApi = { ...nuevo, estado: 'FINISHED' as const, golesA90: 2, golesB90: 1 };
+    const enBd = actual({ sellado: true, estado: 'FINISHED', goles_a_90: 2, goles_b_90: 2 });
+    expect(necesitaActualizar(finApi, enBd)).toBe(true);
+  });
+  it('sellado + mismo resultado final ⇒ false (no reescribe, sin churn)', () => {
+    const finApi = { ...nuevo, estado: 'FINISHED' as const, golesA90: 2, golesB90: 1 };
+    const enBd = actual({ sellado: true, estado: 'FINISHED', goles_a_90: 2, goles_b_90: 1 });
+    expect(necesitaActualizar(finApi, enBd)).toBe(false);
+  });
+  it('sellado + football-data corrige el GANADOR final ⇒ true', () => {
+    const finApi = { ...nuevo, estado: 'FINISHED' as const, golesA90: 1, golesB90: 1, ganadorFinal: 'A' as const };
+    const enBd = actual({ sellado: true, estado: 'FINISHED', goles_a_90: 1, goles_b_90: 1, ganador_final: 'B' });
+    expect(necesitaActualizar(finApi, enBd)).toBe(true);
+  });
+  it('sellado + corrección MANUAL del admin ⇒ false (la API no la pisa)', () => {
+    const finApi = { ...nuevo, estado: 'FINISHED' as const, golesA90: 2, golesB90: 1 };
+    const enBd = actual({ sellado: true, correccion_manual: true, estado: 'FINISHED', goles_a_90: 2, goles_b_90: 2 });
+    expect(necesitaActualizar(finApi, enBd)).toBe(false);
+  });
+  it('sellado + API lo regresa a IN_PLAY ⇒ false (no des-finaliza)', () => {
+    const enBd = actual({ sellado: true, estado: 'FINISHED', goles_a_90: 2, goles_b_90: 1 });
+    expect(necesitaActualizar(nuevo, enBd)).toBe(false); // nuevo va IN_PLAY
   });
   it('corrección manual + API SIN datos (SCHEDULED) ⇒ false (se respeta el manual)', () => {
     const apiSched = { ...nuevo, estado: 'SCHEDULED' as const };

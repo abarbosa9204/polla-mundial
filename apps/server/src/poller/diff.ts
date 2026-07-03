@@ -27,7 +27,26 @@ export function necesitaActualizar(
   actual: PartidoActual | undefined,
 ): boolean {
   if (!actual) return true; // partido nuevo: insertar
-  if (actual.sellado) return false; // sellado: jamás reescribir desde la API
+
+  // SELLADO: por defecto no se reescribe. EXCEPCIÓN: la fuente PRIMARIA
+  // (football-data) puede CORREGIR el RESULTADO FINAL de un partido ya finalizado
+  // —p. ej. un gol anulado por VAR que football-data cuenta al pitar y quita
+  // segundos después— siempre que siga FINISHED pero con distinto
+  // marcador/extra/ganador. Nunca se "des-finaliza" (cualquier otro estado ⇒ no)
+  // y una corrección MANUAL del admin gana sobre la API (no se pisa). La fuente
+  // alterna en vivo no llega aquí: su ruta ya salta los partidos sellados.
+  if (actual.sellado) {
+    if (actual.correccion_manual) return false;
+    if (nuevo.estado !== 'FINISHED') return false;
+    return (
+      actual.goles_a_90 !== nuevo.golesA90 ||
+      actual.goles_b_90 !== nuevo.golesB90 ||
+      actual.hubo_extra !== nuevo.huboExtra ||
+      actual.goles_a_extra !== nuevo.golesAExtra ||
+      actual.goles_b_extra !== nuevo.golesBExtra ||
+      actual.ganador_final !== nuevo.ganadorFinal
+    );
+  }
 
   // El dato manual es solo un RESPALDO mientras la API está caída. En cuanto la
   // API vuelve a reportar el partido en curso o finalizado, RECLAMA el control y
